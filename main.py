@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
-    QMessageBox, QDialog, QFormLayout, QTableWidget, QTableWidgetItem
+    QMessageBox, QDialog, QFormLayout, QTableWidget, QTableWidgetItem, QComboBox
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontDatabase
@@ -110,61 +110,98 @@ class LoginWindow(QWidget):
         dialog.exec()
 
     def open_create_account_dialog(self):
-        dialog = CreateAccountDialog()
+        dialog = CreateAccountDialog(self)
         dialog.exec()
 
 class CreateAccountDialog(QDialog):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        # Dialog window properties
         self.setWindowTitle("Create Account")
-        self.setGeometry(200, 200, 400, 300)
-        self.layout = QVBoxLayout()
 
-        self.name_input = QLineEdit()
-        self.matric_no_input = QLineEdit()
-        self.username_input = QLineEdit()
-        self.password_input = QLineEdit()
+        # Form layout
+        form_layout = QFormLayout()
+
+        # Name input
+        self.name_input = QLineEdit(self)
+        form_layout.addRow("Name:", self.name_input)
+
+        # Matric Number input
+        self.matric_input = QLineEdit(self)
+        form_layout.addRow("Matric Number:", self.matric_input)
+
+        # Department input
+        self.department_input = QLineEdit(self)
+        form_layout.addRow("Department:", self.department_input)
+
+        # Level input
+        self.level_input = QLineEdit(self)
+        form_layout.addRow("Level:", self.level_input)
+
+        # Age Input
+        self.age_input = QLineEdit(self)
+        form_layout.addRow("Age:", self.age_input)
+
+        # Add Phone number
+        self.phone_number = QLineEdit(self)
+        form_layout.addRow("Phone number:", self.phone_number)
+
+        # Username input
+        self.username_input = QLineEdit(self)
+        form_layout.addRow("Username:", self.username_input)
+
+        # Password input (set to password mode)
+        self.password_input = QLineEdit(self)
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form_layout.addRow("Password:", self.password_input)
 
-        self.layout.addRow("Name:", self.name_input)
-        self.layout.addRow("Matric No:", self.matric_no_input)
-        self.layout.addRow("Username:", self.username_input)
-        self.layout.addRow("Password:", self.password_input)
+        # Role dropdown
+        self.role_input = QComboBox(self)
+        self.role_input.addItems(["Student", "Admin", "Teacher"])
+        form_layout.addRow("Role:", self.role_input)
 
-        self.create_button = QPushButton("Create")
-        self.create_button.clicked.connect(self.create_account)
-        self.layout.addWidget(self.create_button)
-        self.setLayout(self.layout)
+        # Submit button
+        self.submit_button = QPushButton("Submit")
+        self.submit_button.clicked.connect(self.save_to_database)
+        form_layout.addWidget(self.submit_button)
 
-    def create_account(self):
+        # Set layout
+        self.setLayout(form_layout)
+
+    def save_to_database(self):
+        # Collect input data
         name = self.name_input.text()
-        matric_no = self.matric_no_input.text()
+        matric_number = self.matric_input.text()
+        department = self.department_input.text()
+        level = self.level_input.text()
+        age = self.age_input.text()  # Example fixed age value
+        phone_number = self.phone_number.text()  # Example fixed phone number
         username = self.username_input.text()
         password = self.password_input.text()
-        role = self.role_input.text()
+        approved = False  # Example approval status
+        role = self.role_input.currentText()
 
-        if not name or not matric_no or not username or not password:
-            QMessageBox.warning(self, "Error", "All fields are required.")
+        # Validation
+        if not all([name, matric_number, department, level, role]):
+            QMessageBox.warning(self, "Input Error", "All fields are required.")
             return
 
-        hashed_password = hash_password(password)
+        # Insert data into the existing general_data table
+        conn = sqlite3.connect('school_database.db')
+        cursor = conn.cursor()
         try:
-            cursor.execute("SELECT * FROM general_data WHERE username = ?", (username,))
-            existing_user = cursor.fetchone()
-            if existing_user:
-                QMessageBox.warning(self, "Error", "Username already exists.")
-                return
-
-            cursor.execute(
-                "INSERT INTO general_data (name, matric_no, username, password, approved, role) VALUES (?, ?, ?, ?, "
-                "0, ?)",
-                (name, matric_no, username, hashed_password, 0, 'student')
-            )
+            cursor.execute('''
+                INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, approved, role)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, matric_number, level, department, age, phone_number, username, password, approved, role))
             conn.commit()
-            QMessageBox.information(self, "Success", "Account created. Awaiting approval.")
+            QMessageBox.information(self, "Success", "Wait for Account Approval")
             self.accept()
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, "Error", f"Database error: {e}")
+        except sqlite3.IntegrityError as e:
+            QMessageBox.warning(self, "Database Error", f"Error: {e}")
+        finally:
+            conn.close()
 
 class AdminPanel(QDialog):
     def __init__(self):
