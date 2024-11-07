@@ -1,6 +1,7 @@
 import sys
 import sqlite3
 import hashlib
+import os
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
     QMessageBox, QDialog, QFormLayout, QTableWidget, QTableWidgetItem, QComboBox
@@ -48,7 +49,7 @@ def get_student_biodata(username):
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('University Login')
+        self.setWindowTitle('Bells University Login Page')
         self.setGeometry(100, 100, 600, 400)
 
         self.main_layout = QVBoxLayout()
@@ -100,14 +101,37 @@ class LoginWindow(QWidget):
                 self.open_admin_panel()
             elif user[9] == 'teacher':
                 QMessageBox.information(self, 'Teacher', 'Logged in successfully')
+                teacher_data = {
+                    'name': user[0],           # Assuming user[0] is the name
+                    'username': user[7],       # Assuming user[7] is the username
+                    'department': user[3],     # Assuming user[3] is the department
+                    'phone_number': user[5],   # Assuming user[5] is the phone number
+                }
+                self.open_teacher_dashboard(teacher_data)
             else:
                 QMessageBox.information(self, 'Student', 'Logged in successfully')
+                student_data = {
+                    'name': user[0],           # Assuming user[0] is the name
+                    'matric_no': user[1],      # Assuming user[1] is the matric number
+                    'level': user[2],          # Assuming user[2] is the level
+                    'department': user[3],     # Assuming user[3] is the department
+                    'phone_number': user[5],   # Assuming user[5] is the phone number
+                }
+                self.open_student_dashboard(student_data)
         else:
             QMessageBox.warning(self, 'Error', 'Invalid credentials or account not approved')
 
     def open_admin_panel(self):
         dialog = AdminPanel()
         dialog.exec()
+
+    def open_student_dashboard(self, student_data):
+        dashboard = StudentDashboard(student_data)
+        dashboard.exec()
+
+    def open_teacher_dashboard(self, teacher_data):
+        dashboard = TeacherDashboard(teacher_data)
+        dashboard.exec()  # Show the teacher dashboard window
 
     def open_create_account_dialog(self):
         dialog = CreateAccountDialog(self)
@@ -187,6 +211,8 @@ class CreateAccountDialog(QDialog):
             QMessageBox.warning(self, "Input Error", "All fields are required.")
             return
 
+        hashed_password = hash_password(password)
+
         # Insert data into the existing general_data table
         conn = sqlite3.connect('school_database.db')
         cursor = conn.cursor()
@@ -194,7 +220,7 @@ class CreateAccountDialog(QDialog):
             cursor.execute('''
                 INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, approved, role)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (name, matric_number, level, department, age, phone_number, username, password, approved, role))
+            ''', (name, matric_number, level, department, age, phone_number, username, hashed_password, approved, role))
             conn.commit()
             QMessageBox.information(self, "Success", "Wait for Account Approval")
             self.accept()
@@ -247,7 +273,6 @@ class AdminPanel(QDialog):
         window.show()
 
 # Dialog for User Management
-# Dialog for User Management
 class UserManagementDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -267,15 +292,11 @@ class UserManagementDialog(QDialog):
         self.approve_user_button = QPushButton("Approve User")
         self.approve_user_button.clicked.connect(self.approve_user)
 
-        self.disapprove_user_button = QPushButton("Disapprove User")
-        self.disapprove_user_button.clicked.connect(self.disapprove_user)
-
         # Add buttons to layout
         self.layout.addWidget(self.add_user_button)
         self.layout.addWidget(self.edit_user_button)
         self.layout.addWidget(self.delete_user_button)
         self.layout.addWidget(self.approve_user_button)
-        self.layout.addWidget(self.disapprove_user_button)
         self.setLayout(self.layout)
 
     def add_user(self):
@@ -294,76 +315,48 @@ class UserManagementDialog(QDialog):
         dialog = ApproveUserDialog()
         dialog.exec()
 
-    def disapprove_user(self):
-        dialog = DisapproveUserDialog()
-        dialog.exec()
-
 
 # Dialog for approving a user
 class ApproveUserDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Approve User")
+        self.setWindowTitle("Approve User by Matric Number")
         self.setGeometry(200, 200, 400, 300)
         layout = QFormLayout()
 
-        self.username_input = QLineEdit()
-        layout.addRow("Username to Approve:", self.username_input)
+        # Matric number input field
+        self.matric_number_input = QLineEdit()
+        layout.addRow("Matric Number to Approve:", self.matric_number_input)
 
+        # Approve button
         self.approve_button = QPushButton("Approve User")
         self.approve_button.clicked.connect(self.approve_user_in_db)
         layout.addRow(self.approve_button)
         self.setLayout(layout)
 
     def approve_user_in_db(self):
-        username = self.username_input.text()
-        if not username:
-            QMessageBox.warning(self, "Error", "Username is required.")
+        matric_number = self.matric_number_input.text()
+
+        # Ensure matric number is provided
+        if not matric_number:
+            QMessageBox.warning(self, "Error", "Matric number is required.")
             return
 
+        # Database connection (assuming `conn` and `cursor` are pre-defined globally)
         try:
-            cursor.execute("UPDATE general_data SET approved = ? WHERE username = ?", (1, username))
-            conn.commit()
+            # Attempt to approve user in the database
+            cursor.execute("UPDATE general_data SET approved = 1 WHERE matric_no = ?", (matric_number,))
+            conn.commit()  # Commit the change to the database
+
+            # Check if any rows were affected (user found and updated)
             if cursor.rowcount == 0:
                 QMessageBox.warning(self, "Error", "User not found.")
             else:
                 QMessageBox.information(self, "Success", "User approved successfully.")
-                self.accept()
+                self.accept()  # Close the dialog upon successful approval
+
         except sqlite3.Error as e:
-            QMessageBox.warning(self, "Error", f"Database error: {e}")
-
-
-# Dialog for disapproving a user
-class DisapproveUserDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Disapprove User")
-        self.setGeometry(200, 200, 400, 300)
-        layout = QFormLayout()
-
-        self.username_input = QLineEdit()
-        layout.addRow("Username to Disapprove:", self.username_input)
-
-        self.disapprove_button = QPushButton("Disapprove User")
-        self.disapprove_button.clicked.connect(self.disapprove_user_in_db)
-        layout.addRow(self.disapprove_button)
-        self.setLayout(layout)
-
-    def disapprove_user_in_db(self):
-        username = self.username_input.text()
-        if not username:
-            QMessageBox.warning(self, "Error", "Username is required.")
-            return
-
-        try:
-            cursor.execute("UPDATE general_data SET approved = ? WHERE username = ?", (0, username))
-            conn.commit()
-            if cursor.rowcount == 0:
-                QMessageBox.warning(self, "Error", "User not found.")
-            else:
-                QMessageBox.information(self, "Success", "User disapproved successfully.")
-                self.accept()
-        except sqlite3.Error as e:
+            # Display database error if any occurs
             QMessageBox.warning(self, "Error", f"Database error: {e}")
 
 
@@ -703,6 +696,117 @@ class DeleteCourseDialog(QDialog):
                 self.accept()
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Error", f"Database error: {e}")
+
+class StudentDashboard(QDialog):
+    def __init__(self, student_data):
+        super().__init__()
+        self.setWindowTitle("Student Dashboard")
+        self.setGeometry(200, 200, 500, 400)
+
+        layout = QVBoxLayout()
+
+        # Display student information
+        self.student_data = student_data
+        name_label = QLabel(f"Name: {self.student_data['name']}")
+        matric_no_label = QLabel(f"Matric Number: {self.student_data['matric_no']}")
+        level_label = QLabel(f"Level: {self.student_data['level']}")
+        department_label = QLabel(f"Department: {self.student_data['department']}")
+        phone_label = QLabel(f"Phone Number: {self.student_data['phone_number']}")
+
+        # Add student info labels to the layout
+        layout.addWidget(name_label)
+        layout.addWidget(matric_no_label)
+        layout.addWidget(level_label)
+        layout.addWidget(department_label)
+        layout.addWidget(phone_label)
+
+        # Add action buttons
+        self.course_registration_button = QPushButton("Register Courses")
+        self.course_registration_button.clicked.connect(self.register_courses)
+
+        self.hostel_registration_button = QPushButton("Hostel Registration")
+        self.hostel_registration_button.clicked.connect(self.register_hostel)
+
+        self.print_result_button = QPushButton("Print Result")
+        self.print_result_button.clicked.connect(self.print_result)
+
+        self.id_card_request_button = QPushButton("ID Card Request Form")
+        self.id_card_request_button.clicked.connect(self.request_id_card)
+
+        # Add buttons to the layout
+        layout.addWidget(self.course_registration_button)
+        layout.addWidget(self.hostel_registration_button)
+        layout.addWidget(self.print_result_button)
+        layout.addWidget(self.id_card_request_button)
+
+        self.setLayout(layout)
+
+    def register_courses(self):
+        # Placeholder action for course registration
+        QMessageBox.information(self, "Register Courses", "Course registration window opened.")
+
+    def register_hostel(self):
+        # Placeholder action for hostel registration
+        QMessageBox.information(self, "Hostel Registration", "Hostel registration window opened.")
+
+    def print_result(self):
+        # Placeholder action for printing results
+        QMessageBox.information(self, "Print Result", "Result printing window opened.")
+
+    def request_id_card(self):
+        # Placeholder action for ID card request
+        QMessageBox.information(self, "ID Card Request", "ID Card request form opened.")
+
+class TeacherDashboard(QDialog):
+    def __init__(self, teacher_data):
+        super().__init__()
+        self.setWindowTitle("Teacher Dashboard")
+        self.setGeometry(200, 200, 500, 400)
+
+        layout = QVBoxLayout()
+
+        # Display teacher information
+        self.teacher_data = teacher_data
+        name_label = QLabel(f"Name: {self.teacher_data['name']}")
+        username_label = QLabel(f"Username: {self.teacher_data['username']}")
+        department_label = QLabel(f"Department: {self.teacher_data['department']}")
+        phone_label = QLabel(f"Phone Number: {self.teacher_data['phone_number']}")
+
+        # Add teacher info labels to the layout
+        layout.addWidget(name_label)
+        layout.addWidget(username_label)
+        layout.addWidget(department_label)
+        layout.addWidget(phone_label)
+
+        # Add action buttons
+        self.view_courses_button = QPushButton("View Courses")
+        self.view_courses_button.clicked.connect(self.view_courses)
+
+        self.view_students_button = QPushButton("View Students")
+        self.view_students_button.clicked.connect(self.view_students)
+
+        self.generate_reports_button = QPushButton("Generate Reports")
+        self.generate_reports_button.clicked.connect(self.generate_reports)
+
+        # Add buttons to the layout
+        layout.addWidget(self.view_courses_button)
+        layout.addWidget(self.view_students_button)
+        layout.addWidget(self.generate_reports_button)
+
+        self.setLayout(layout)
+
+    def view_courses(self):
+        # Placeholder action for viewing courses
+        QMessageBox.information(self, "View Courses", "Course viewing window opened.")
+
+    def view_students(self):
+        # Placeholder action for viewing students
+        QMessageBox.information(self, "View Students", "Student viewing window opened.")
+
+    def generate_reports(self):
+        # Placeholder action for generating reports
+        QMessageBox.information(self, "Generate Reports", "Report generation window opened.")
+
 
 # Main execution of the application
 app = QApplication(sys.argv)
