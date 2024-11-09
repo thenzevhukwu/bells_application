@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QDialog, QFormLayout, QTableWidget, QTableWidgetItem, QComboBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontDatabase
+from PyQt6.QtGui import QFontDatabase, QIcon
 
 # Connect to SQLite database
 conn = sqlite3.connect('school_database.db')
@@ -51,6 +51,9 @@ class LoginWindow(QWidget):
         super().__init__()
         self.setWindowTitle('Bells University Login Page')
         self.setGeometry(100, 100, 600, 400)
+
+        # Set the window icon (favicon)
+        self.setWindowIcon(QIcon('university_logo.png'))  # Provide the path to your icon file
 
         self.main_layout = QVBoxLayout()
         self.create_top_layout()
@@ -240,9 +243,6 @@ class AdminPanel(QDialog):
         self.user_management_button = QPushButton("User Management")
         self.user_management_button.clicked.connect(self.open_user_management)
 
-        self.profile_management_button = QPushButton("Manage User Profiles")
-        self.profile_management_button.clicked.connect(self.open_profile_management)
-
         self.program_course_management_button = QPushButton("Manage Academic Programs and Courses")
         self.program_course_management_button.clicked.connect(self.open_program_course_management)
 
@@ -251,17 +251,12 @@ class AdminPanel(QDialog):
 
         # Add buttons to layout
         self.layout.addWidget(self.user_management_button)
-        self.layout.addWidget(self.profile_management_button)
         self.layout.addWidget(self.program_course_management_button)
         self.layout.addWidget(self.logout_button)
         self.setLayout(self.layout)
 
     def open_user_management(self):
         dialog = UserManagementDialog()
-        dialog.exec()
-
-    def open_profile_management(self):
-        dialog = ProfileManagementDialog()
         dialog.exec()
 
     def open_program_course_management(self):
@@ -280,11 +275,11 @@ class UserManagementDialog(QDialog):
         self.setGeometry(150, 150, 500, 400)
         self.layout = QVBoxLayout()
 
+        self.view_profile_button = QPushButton("View Profiles")
+        self.view_profile_button.clicked.connect(self.view_profiles)
+
         self.add_user_button = QPushButton("Add User")
         self.add_user_button.clicked.connect(self.add_user)
-
-        self.edit_user_button = QPushButton("Edit User")
-        self.edit_user_button.clicked.connect(self.edit_user)
 
         self.delete_user_button = QPushButton("Delete User")
         self.delete_user_button.clicked.connect(self.delete_user)
@@ -293,18 +288,14 @@ class UserManagementDialog(QDialog):
         self.approve_user_button.clicked.connect(self.approve_user)
 
         # Add buttons to layout
+        self.layout.addWidget(self.view_profile_button)
         self.layout.addWidget(self.add_user_button)
-        self.layout.addWidget(self.edit_user_button)
         self.layout.addWidget(self.delete_user_button)
         self.layout.addWidget(self.approve_user_button)
         self.setLayout(self.layout)
 
     def add_user(self):
         dialog = AddUserDialog()
-        dialog.exec()
-
-    def edit_user(self):
-        dialog = EditUserDialog()
         dialog.exec()
 
     def delete_user(self):
@@ -314,6 +305,73 @@ class UserManagementDialog(QDialog):
     def approve_user(self):
         dialog = ApproveUserDialog()
         dialog.exec()
+
+    def view_profiles(self):
+        try:
+            cursor.execute("SELECT * FROM general_data")
+            users = cursor.fetchall()
+
+            if not users:
+                QMessageBox.information(self, "Info", "No users found.")
+                return
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("User Profiles")
+            dialog.setGeometry(150, 150, 600, 400)
+
+            layout = QVBoxLayout()
+
+            table = QTableWidget()
+            table.setRowCount(len(users))
+            table.setColumnCount(10)
+            table.setHorizontalHeaderLabels([
+                "Name", "Matric No", "Level", "Department", "Age",
+                "Phone number", "Username", "Password", "Approved", "Role"
+            ])
+
+            # Populate the table and make cells editable
+            for i, user in enumerate(users):
+                for j in range(10):
+                    item = QTableWidgetItem(str(user[j]))
+                    table.setItem(i, j, item)
+
+            layout.addWidget(table)
+
+            # Add the 'Done' button
+            done_button = QPushButton("Done")
+
+            # Function to save changes to the database
+            def save_changes():
+                try:
+                    for i in range(table.rowCount()):
+                        updated_values = []
+                        for j in range(table.columnCount()):
+                            updated_values.append(table.item(i, j).text())
+
+                        update_query = """
+                            UPDATE general_data 
+                            SET name = ?, matric_no = ?, level = ?, department = ?, age = ?, 
+                                phone_number = ?, username = ?, password = ?, approved = ?, role = ?
+                            WHERE matric_no = ?
+                        """
+                        # Execute the update query using matric_no as the unique identifier
+                        cursor.execute(update_query, (*updated_values, updated_values[1]))
+
+                    conn.commit()  # Commit changes after all updates
+                    QMessageBox.information(self, "Info", "Changes saved successfully.")
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"An error occurred while saving changes: {e}")
+                finally:
+                    dialog.accept()  # Close the dialog after saving or in case of error
+
+            done_button.clicked.connect(save_changes)
+            layout.addWidget(done_button)
+
+            dialog.setLayout(layout)
+            dialog.exec()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred: {e}")
 
 
 # Dialog for approving a user
@@ -415,61 +473,6 @@ class AddUserDialog(QDialog):
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Error", f"Database error: {e}")
 
-# Dialog for editing a user
-class EditUserDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Edit User")
-        self.setGeometry(200, 200, 400, 300)
-        layout = QFormLayout()
-
-        self.username_input = QLineEdit()
-        self.new_name_input = QLineEdit()
-        self.new_matric_no_input = QLineEdit()
-        self.new_password_input = QLineEdit()
-        self.new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.new_role_input = QLineEdit()  # Role input
-
-        layout.addRow("Username to Edit:", self.username_input)
-        layout.addRow("New Name:", self.new_name_input)
-        layout.addRow("New Matric No:", self.new_matric_no_input)
-        layout.addRow("New Password:", self.new_password_input)
-        layout.addRow("New Role (student/admin/teacher):", self.new_role_input)
-
-        self.edit_button = QPushButton("Edit User")
-        self.edit_button.clicked.connect(self.edit_user_in_db)
-        layout.addRow(self.edit_button)
-        self.setLayout(layout)
-
-    def edit_user_in_db(self):
-        username = self.username_input.text()
-        new_name = self.new_name_input.text()
-        new_matric_no = self.new_matric_no_input.text()
-        new_password = self.new_password_input.text()
-        new_role = self.new_role_input.text()
-
-        if not username:
-            QMessageBox.warning(self, "Error", "Username is required.")
-            return
-
-        hashed_password = hash_password(new_password) if new_password else None
-        try:
-            cursor.execute("SELECT * FROM general_data WHERE username = ?", (username,))
-            user = cursor.fetchone()
-            if not user:
-                QMessageBox.warning(self, "Error", "User not found.")
-                return
-
-            # Update user information
-            cursor.execute(
-                "UPDATE general_data SET name = ?, matric_no = ?, password = ?, role = ? WHERE username = ?",
-                (new_name or user[1], new_matric_no or user[2], hashed_password or user[7], new_role or user[9], username)
-            )
-            conn.commit()
-            QMessageBox.information(self, "Success", "User edited successfully.")
-            self.accept()
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, "Error", f"Database error: {e}")
 
 # Dialog for deleting a user
 class DeleteUserDialog(QDialog):
@@ -504,45 +507,6 @@ class DeleteUserDialog(QDialog):
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Error", f"Database error: {e}")
 
-# Dialog for Profile Management
-class ProfileManagementDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Manage User Profiles")
-        self.setGeometry(150, 150, 500, 400)
-        self.layout = QVBoxLayout()
-
-        self.view_profiles_button = QPushButton("View Profiles")
-        self.view_profiles_button.clicked.connect(self.view_profiles)
-
-        # Add buttons to layout
-        self.layout.addWidget(self.view_profiles_button)
-        self.setLayout(self.layout)
-
-    def view_profiles(self):
-        cursor.execute("SELECT * FROM general_data")
-        users = cursor.fetchall()
-
-        if not users:
-            QMessageBox.information(self, "Info", "No users found.")
-            return
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("User Profiles")
-        dialog.setGeometry(150, 150, 600, 400)
-        layout = QVBoxLayout()
-        table = QTableWidget()
-        table.setRowCount(len(users))
-        table.setColumnCount(6)
-        table.setHorizontalHeaderLabels(["Name", "Matric No", "Username", "Role", "Approved", "Phone"])
-
-        for i, user in enumerate(users):
-            for j in range(6):
-                table.setItem(i, j, QTableWidgetItem(str(user[j])))
-
-        layout.addWidget(table)
-        dialog.setLayout(layout)
-        dialog.exec()
 
 # Dialog for Academic Programs and Courses Management
 class ProgramCourseManagementDialog(QDialog):
