@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QScrollArea
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontDatabase, QIcon
+from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont
 
 # Connect to SQLite database
 conn = sqlite3.connect('school_database.db')
@@ -54,6 +54,73 @@ def get_student_biodata(username):
     return cursor.fetchone()
 
 
+class LandingPage(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        # Set window properties
+        self.setWindowTitle("University Login")
+        self.setGeometry(100, 100, 600, 400)
+
+        # Set background color
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#002147"))  # Light blue background
+        self.setPalette(palette)
+
+        # Main layout
+        main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Title
+        title_label = QLabel("Bells University of Technology")
+        title_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        main_layout.addWidget(title_label)
+
+        # Subtitle
+        subtitle_label = QLabel("Only the best is good for Bells")
+        subtitle_label.setFont(QFont("Arial", 16))
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        main_layout.addWidget(subtitle_label)
+
+        # Login Button
+        login_button = QPushButton("Login")
+        login_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        login_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #4682b4;  /* Steel Blue */
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 10px 20px;
+            }
+            QPushButton:hover {
+                background-color: #5a9bd3;
+            }
+            QPushButton:pressed {
+                background-color: #3a6591;
+            }
+            """
+        )
+        login_button.clicked.connect(self.open_main_login)
+        main_layout.addSpacing(50)
+
+        main_layout.addWidget(login_button, alignment=Qt.AlignmentFlag.AlignBottom)
+
+        # Set layout
+        self.setLayout(main_layout)
+
+    def open_main_login(self):
+        # Create an instance of LoginWindow and show it
+        self.login_window = LoginWindow()
+        self.login_window.show()
+        self.close()  # Close the Landing Page
+
+
+
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -84,21 +151,45 @@ class LoginWindow(QWidget):
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
 
+        # Add the button for toggling password visibility
+        self.toggle_password_btn = QPushButton("👁", self)
+        self.toggle_password_btn.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
+
+        # Create a horizontal layout for password input and toggle button
+        self.password_layout = QHBoxLayout()
+        self.password_layout.addWidget(self.password_input)
+        self.password_layout.addWidget(self.toggle_password_btn)
+
+        # Create the login button and create account button
         self.login_button = QPushButton('Login')
         self.login_button.clicked.connect(self.login)
 
         self.create_account_button = QPushButton('Create Account')
         self.create_account_button.clicked.connect(self.open_create_account_dialog)
 
+        # Create form layout and add widgets
         self.form_layout = QVBoxLayout()
         self.form_layout.addWidget(self.login_label)
         self.form_layout.addWidget(self.username_label)
         self.form_layout.addWidget(self.username_input)
         self.form_layout.addWidget(self.password_label)
-        self.form_layout.addWidget(self.password_input)
+        self.form_layout.addLayout(self.password_layout)  # Add password layout with button
         self.form_layout.addWidget(self.login_button)
         self.form_layout.addWidget(self.create_account_button)
+
         self.main_layout.addLayout(self.form_layout)
+
+    def toggle_password_visibility(self):
+        """
+        Toggles the visibility of the password input field.
+        """
+        if self.password_input.echoMode() == QLineEdit.EchoMode.Password:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.toggle_password_btn.setText("🙈")  # Change to closed-eye icon
+        else:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.toggle_password_btn.setText("👁")  # Change back to open-eye icon
 
     def login(self):
         username = self.username_input.text()
@@ -147,7 +238,6 @@ class LoginWindow(QWidget):
     def open_create_account_dialog(self):
         dialog = CreateAccountDialog(self)
         dialog.exec()
-
 
 class CreateAccountDialog(QDialog):
     def __init__(self, parent=None):
@@ -556,7 +646,6 @@ class ProgramCourseManagementDialog(QDialog):
 
 
 # Dialog for adding a course
-
 class AddCourseDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -935,8 +1024,9 @@ class TeacherDashboard(QDialog):
                 conn.close()
 
 
+
 # Main execution of the application
 app = QApplication(sys.argv)
-window = LoginWindow()
+window = LandingPage()
 window.show()
 sys.exit(app.exec())
