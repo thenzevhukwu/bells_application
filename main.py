@@ -5,9 +5,9 @@ import os
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
     QMessageBox, QDialog, QFormLayout, QTableWidget, QTabWidget, QTableWidgetItem, QComboBox, QSpinBox, QHeaderView,
-    QHBoxLayout, QScrollArea
+    QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtBoundSignal
 from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont
 
 # Connect to SQLite database
@@ -54,40 +54,64 @@ def get_student_biodata(username):
     return cursor.fetchone()
 
 
-class LandingPage(QWidget):
-    def __init__(self):
-        super().__init__()
+class LandingPage(QMainWindow):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.init_ui()
 
     def init_ui(self):
         # Set window properties
         self.setWindowTitle("University Login")
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 1080, 720)
 
-        # Set background color
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#002147"))  # Light blue background
-        self.setPalette(palette)
+        # Create a central widget
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
 
-        # Main layout
+        # Apply background image using stylesheet
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background-image: url("bells-img.jpg");
+                background-repeat: no-repeat;
+                background-position: center;
+                background-size: cover;
+            }
+            """
+        )
+
+        # Create a dark overlay (semi-transparent QWidget)
+        overlay = QWidget(central_widget)
+        overlay.setStyleSheet(
+            """
+            QWidget {
+                background-color: rgba(0, 0, 0, 0.5);  /* Black with 50% opacity */
+            }
+            """
+        )
+        overlay.setGeometry(self.rect())  # Covers the entire window
+
+        # Create a layout for text and buttons
         main_layout = QVBoxLayout()
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Title
-        title_label = QLabel("Bells University of Technology")
-        title_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        title_label = QLabel("Bells University of Technology\nE-Campus Portal")
+        title_label.setFont(QFont("Artifakt Element", 20, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("color: white;")  # Ensures text is visible over the image
         main_layout.addWidget(title_label)
 
         # Subtitle
         subtitle_label = QLabel("Only the best is good for Bells")
-        subtitle_label.setFont(QFont("Arial", 16))
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        subtitle_label.setFont(QFont("Artifakt Element", 16))
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_label.setStyleSheet("color: white;")
         main_layout.addWidget(subtitle_label)
 
         # Login Button
         login_button = QPushButton("Login")
-        login_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        login_button.setFont(QFont("Artifakt Element", 14, QFont.Weight.Bold))
         login_button.setStyleSheet(
             """
             QPushButton {
@@ -107,25 +131,28 @@ class LandingPage(QWidget):
         )
         login_button.clicked.connect(self.open_main_login)
         main_layout.addSpacing(50)
-
         main_layout.addWidget(login_button, alignment=Qt.AlignmentFlag.AlignBottom)
 
-        # Set layout
-        self.setLayout(main_layout)
+        # Add the layout to the central widget
+        central_widget.setLayout(main_layout)
+
+    def resizeEvent(self, event):
+        """Ensure overlay and widgets resize with the window."""
+        for child in self.findChildren(QWidget):
+            child.setGeometry(self.rect())
+        super().resizeEvent(event)
 
     def open_main_login(self):
-        # Create an instance of LoginWindow and show it
-        self.login_window = LoginWindow()
-        self.login_window.show()
-        self.close()  # Close the Landing Page
-
+        # Navigate to next window
+        if self.parent():
+            self.parent().setCurrentIndex(1)
 
 
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Bells University Login Page')
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 1080, 720)
 
         # Set the window icon (favicon)
         self.setWindowIcon(QIcon('university_logo.png'))  # Provide the path to your icon file
@@ -136,7 +163,6 @@ class LoginWindow(QWidget):
         self.setLayout(self.main_layout)
 
     def create_top_layout(self):
-        font_id = QFontDatabase.addApplicationFont("Artifakt Element.ttf.ttf")
         self.university_label = QLabel('Bells University Of Technology')
         self.university_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.main_layout.addWidget(self.university_label)
@@ -238,6 +264,7 @@ class LoginWindow(QWidget):
     def open_create_account_dialog(self):
         dialog = CreateAccountDialog(self)
         dialog.exec()
+
 
 class CreateAccountDialog(QDialog):
     def __init__(self, parent=None):
@@ -1024,9 +1051,25 @@ class TeacherDashboard(QDialog):
                 conn.close()
 
 
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("University Login")
+        self.setGeometry(100, 100, 1080, 720)
+
+        # Create a stacked widget and add pages
+        self.stacked_widget = QStackedWidget()
+        self.setCentralWidget(self.stacked_widget)
+
+        self.landing_page = LandingPage()
+        self.login_page = LoginWindow()
+
+        self.stacked_widget.addWidget(self.landing_page)  # Page 0
+        self.stacked_widget.addWidget(self.login_page)  # Page 1
+
 
 # Main execution of the application
 app = QApplication(sys.argv)
-window = LandingPage()
+window = MainWindow()
 window.show()
 sys.exit(app.exec())
