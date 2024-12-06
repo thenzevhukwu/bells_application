@@ -5,7 +5,7 @@ import os
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
     QMessageBox, QDialog, QFormLayout, QTableWidget, QTabWidget, QTableWidgetItem, QComboBox, QSpinBox, QHeaderView,
-    QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget
+    QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtBoundSignal
 from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont
@@ -151,77 +151,142 @@ class LandingPage(QMainWindow):
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Bells University Login Page')
+        self.setWindowTitle("Bells University of Technology")
         self.setGeometry(100, 100, 1080, 720)
 
-        # Set the window icon (favicon)
-        self.setWindowIcon(QIcon('university_logo.png'))  # Provide the path to your icon file
-
-        self.main_layout = QVBoxLayout()
-        self.create_top_layout()
-        self.create_login_widgets()
+        # Main layout
+        self.main_layout = QHBoxLayout()
         self.setLayout(self.main_layout)
 
-    def create_top_layout(self):
-        self.university_label = QLabel('Bells University Of Technology')
-        self.university_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.main_layout.addWidget(self.university_label)
+        # Create left (login) and right (info) sections
+        self.create_login_section()
+        self.create_info_section()
 
-    def create_login_widgets(self):
-        self.login_label = QLabel('Login')
+    def create_login_section(self):
 
-        self.username_label = QLabel('Username')
+        """Create the left login section."""
+        login_frame = QFrame()
+        login_frame.setStyleSheet("background-color: #e6e6e6;border-radius: 25px;")
+        login_layout = QVBoxLayout(login_frame)
+        login_layout.setContentsMargins(40, 60, 40, 60)
+
+        # Title
+        title = QLabel("Bells University Login Page")
+        title.setFont(QFont("Artifakt Element Medium", 24, QFont.Weight.Bold))
+        title.setStyleSheet("color: black;")
+        login_layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        subtitle = QLabel("Log in to access your account.")
+        subtitle.setFont(QFont("Artifakt Element Medium", 14))
+        subtitle.setStyleSheet("color: black;")
+        login_layout.addWidget(subtitle, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        # Username input
         self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+        self.username_input.setStyleSheet("""
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            color: black;
+        """)
+        login_layout.addWidget(self.username_input)
 
-        self.password_label = QLabel('Password')
+        # Password input with toggle button inside
+        password_frame = QFrame()
+        password_layout = QHBoxLayout(password_frame)
+        password_layout.setContentsMargins(0, 0, 0, 0)
+
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setPlaceholderText("Password")
+        self.password_input.setStyleSheet("""
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            color: black;
+        """)
+        password_layout.addWidget(self.password_input)
 
-        # Add the button for toggling password visibility
-        self.toggle_password_btn = QPushButton("👁", self)
-        self.toggle_password_btn.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        self.toggle_password_btn = QPushButton("👁")
+        self.toggle_password_btn.setStyleSheet("""
+            font-size: 14px; 
+            background: transparent; 
+            border: none;
+            margin: 0;
+        """)
         self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
+        password_layout.addWidget(self.toggle_password_btn, alignment=Qt.AlignmentFlag.AlignRight)
 
-        # Create a horizontal layout for password input and toggle button
-        self.password_layout = QHBoxLayout()
-        self.password_layout.addWidget(self.password_input)
-        self.password_layout.addWidget(self.toggle_password_btn)
+        login_layout.addWidget(password_frame)
 
-        # Create the login button and create account button
-        self.login_button = QPushButton('Login')
-        self.login_button.clicked.connect(self.login)
+        # Login button
+        login_button = QPushButton("Log In")
+        login_button.setStyleSheet("""
+            QPushButton {
+                background-color: #002147;  /* Default background color */
+                color: white;  /* Text color */
+                font-size: 16px; 
+                padding: 12px;
+                border: none;
+                border-radius: 20px;
+            }
+            QPushButton:hover {
+                background-color: #003366;  /* Slightly lighter blue when hovered */
+            }
+            QPushButton:pressed {
+                background-color: #00060d;  /* Darker blue when clicked */
+            }
+        """)
+        login_button.clicked.connect(self.login)  # Connect the login functionality
+        login_layout.addWidget(login_button)
 
-        self.create_account_button = QPushButton('Create Account')
-        self.create_account_button.clicked.connect(self.open_create_account_dialog)
+        # Forgot Password Button
+        forgot_password_button = QPushButton("Forgot Password?")
+        forgot_password_button.setFont(QFont("Artifakt Element", 14, QFont.Weight.Bold))
+        forgot_password_button.setStyleSheet("""
+            color: #002147;
+            font-size: 14px;
+            background: transparent;
+            border: none;
+            text-align: right;
+            margin-top: 5px;
+            font-weight: bold;
+        """)
+        forgot_password_button.setCursor(Qt.CursorShape.PointingHandCursor)  # Change cursor to pointer on hover
+        forgot_password_button.clicked.connect(self.open_forgot_password_dialog)  # Connect to a method
+        login_layout.addWidget(forgot_password_button, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Create form layout and add widgets
-        self.form_layout = QVBoxLayout()
-        self.form_layout.addWidget(self.login_label)
-        self.form_layout.addWidget(self.username_label)
-        self.form_layout.addWidget(self.username_input)
-        self.form_layout.addWidget(self.password_label)
-        self.form_layout.addLayout(self.password_layout)  # Add password layout with button
-        self.form_layout.addWidget(self.login_button)
-        self.form_layout.addWidget(self.create_account_button)
+        # Sign-Up Button
+        signup_button = QPushButton("Don't have an account? Sign Up")
+        signup_button.setFont(QFont("Artifakt Element", 14, QFont.Weight.Bold))
+        signup_button.setStyleSheet("""
+            color: #002147;
+            font-size: 14px;
+            background: transparent;
+            border: none;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        """)
+        signup_button.setCursor(Qt.CursorShape.PointingHandCursor)  # Change cursor to pointer on hover
+        signup_button.clicked.connect(self.open_signup_dialog)  # Connect to the sign-up dialog
+        login_layout.addWidget(signup_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        self.main_layout.addLayout(self.form_layout)
+        self.main_layout.addWidget(login_frame)
 
-    def toggle_password_visibility(self):
-        """
-        Toggles the visibility of the password input field.
-        """
-        if self.password_input.echoMode() == QLineEdit.EchoMode.Password:
-            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.toggle_password_btn.setText("🙈")  # Change to closed-eye icon
-        else:
-            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self.toggle_password_btn.setText("👁")  # Change back to open-eye icon
+        self.main_layout.addWidget(login_frame)
 
     def login(self):
         username = self.username_input.text()
         password = self.password_input.text()
-        hashed_password = hash_password(password)
-        cursor.execute("SELECT * FROM general_data WHERE username = ? AND password = ?", (username, hashed_password))
+        hashed_password = hash_password(password)  # Ensure you define the hash_password function
+        cursor.execute(
+            "SELECT * FROM general_data WHERE username = ? AND password = ?",
+            (username, hashed_password)
+        )
         user = cursor.fetchone()
 
         if user and user[8]:  # Account approved (column approved is at index 8)
@@ -259,11 +324,145 @@ class LoginWindow(QWidget):
 
     def open_teacher_dashboard(self, teacher_data):
         dashboard = TeacherDashboard(teacher_data)
-        dashboard.exec()  # Show the teacher dashboard window
+        dashboard.exec()
 
-    def open_create_account_dialog(self):
-        dialog = CreateAccountDialog(self)
-        dialog.exec()
+    def open_forgot_password_dialog(self):
+        forgot_password_dialog = ForgotPasswordDialog(self)  # Pass the parent for modality
+        forgot_password_dialog.exec()  # Show the dialog modally
+
+
+    def open_signup_dialog(self):
+        """Opens the sign-up dialog."""
+        signup_dialog = CreateAccountDialog(self)  # Instantiate the dialog
+        signup_dialog.exec()  # Show the dialog modally
+
+
+    def toggle_password_visibility(self):
+        if self.password_input.echoMode() == QLineEdit.EchoMode.Password:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.toggle_password_btn.setText("🙈")
+        else:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.toggle_password_btn.setText("👁")
+
+    def create_info_section(self):
+        info_frame = QFrame()
+        info_frame.setStyleSheet("background-color: #002147; border-radius: 25px;")
+        info_layout = QVBoxLayout(info_frame)
+        info_layout.setContentsMargins(40, 60, 40, 60)
+
+        info_heading = QLabel("Revolutionizing Learning")
+        info_heading.setFont(QFont("Artifakt Element Medium", 20, QFont.Weight.Bold))
+        info_heading.setStyleSheet("color: white; margin-bottom: 10px;")
+        info_layout.addWidget(info_heading, alignment=Qt.AlignmentFlag.AlignTop)
+
+        info_subtitle = QLabel(
+            "Discover a world of opportunities through our cutting-edge platform. "
+            "Manage your courses, collaborate with peers, and excel in your academic journey."
+        )
+        info_subtitle.setFont(QFont("Artifakt Element Medium", 14))
+        info_subtitle.setStyleSheet("color: white;")
+        info_subtitle.setWordWrap(True)
+        info_layout.addWidget(info_subtitle, alignment=Qt.AlignmentFlag.AlignTop)
+
+        placeholder_image = QLabel("🎓")
+        placeholder_image.setFont(QFont("Artifakt Element Medium", 100))
+        placeholder_image.setStyleSheet("color: white;")
+        info_layout.addWidget(placeholder_image, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.main_layout.addWidget(info_frame)
+
+
+class ForgotPasswordDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Forgot Password")
+        self.resize(400, 300)
+
+        # Layout
+        layout = QVBoxLayout()
+
+        # Instruction
+        instruction_label = QLabel(
+            "Enter your username and answer the security question to reset your password."
+        )
+        instruction_label.setWordWrap(True)
+        layout.addWidget(instruction_label)
+
+        # Username input
+        self.username_input = QLineEdit(self)
+        self.username_input.setPlaceholderText("Username")
+        layout.addWidget(self.username_input)
+
+        # Security question (e.g., predefined question for simplicity)
+        self.security_question_label = QLabel("What is your favorite color?")
+        layout.addWidget(self.security_question_label)
+
+        # Answer input
+        self.answer_input = QLineEdit(self)
+        self.answer_input.setPlaceholderText("Answer")
+        layout.addWidget(self.answer_input)
+
+        # New password input
+        self.new_password_input = QLineEdit(self)
+        self.new_password_input.setPlaceholderText("New Password")
+        self.new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.new_password_input)
+
+        # Confirm password input
+        self.confirm_password_input = QLineEdit(self)
+        self.confirm_password_input.setPlaceholderText("Confirm New Password")
+        self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.confirm_password_input)
+
+        # Reset password button
+        self.reset_password_button = QPushButton("Reset Password")
+        self.reset_password_button.clicked.connect(self.reset_password)
+        layout.addWidget(self.reset_password_button)
+
+        # Set layout
+        self.setLayout(layout)
+
+    def reset_password(self):
+        username = self.username_input.text()
+        answer = self.answer_input.text()
+        new_password = self.new_password_input.text()
+        confirm_password = self.confirm_password_input.text()
+
+        # Validation
+        if not username or not answer or not new_password or not confirm_password:
+            QMessageBox.warning(self, "Error", "All fields are required.")
+            return
+
+        if new_password != confirm_password:
+            QMessageBox.warning(self, "Error", "Passwords do not match.")
+            return
+
+        # Simulated validation logic for the security question and username
+        # In a real application, fetch data from the database to verify details
+        conn = sqlite3.connect("school_database.db")
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("SELECT security_answer FROM general_data WHERE username = ?", (username,))
+            result = cursor.fetchone()
+
+            if result and result[0].lower() == answer.lower():  # Case-insensitive comparison
+                hashed_password = hash_password(new_password)
+                cursor.execute(
+                    "UPDATE general_data SET password = ? WHERE username = ?",
+                    (hashed_password, username),
+                )
+                conn.commit()
+                QMessageBox.information(self, "Success", "Password has been reset successfully.")
+                self.accept()
+            else:
+                QMessageBox.warning(self, "Error", "Invalid username or security answer.")
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Error", f"Error: {e}")
+        finally:
+            conn.close()
 
 
 class CreateAccountDialog(QDialog):
