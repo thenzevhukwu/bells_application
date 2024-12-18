@@ -4,17 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1d51dc38-5b7f-425c-b3fd-3e9ba5a1b152" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="1d51dc38-5b7f-425c-b3fd-3e9ba5a1b152" name="Changes" comment="Moved files into assets folder">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Artifakt Element.ttf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bells-img.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configure_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/configure_db.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lpage.py" beforeDir="false" afterPath="$PROJECT_DIR$/lpage.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/school_database.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/university_logo.png" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,6 +47,19 @@
       <option name="presentableId" value="Default" />
       <updated>1734293693202</updated>
     </task>
+    <task id="LOCAL-00001" summary="Moved files into assets folder">
+      <option name="closed" value="true" />
+      <created>1734526101089</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1734526101089</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Moved files into assets folder" />
+    <option name="LAST_COMMIT_MESSAGE" value="Moved files into assets folder" />
   </component>
 </project>
