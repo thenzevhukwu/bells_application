@@ -1,18 +1,20 @@
 import sqlite3
 
 # Connect to the database (or create it if it doesn't exist)
-conn = sqlite3.connect("school_database.db")
+conn = sqlite3.connect("assets/school_database.db")
 cursor = conn.cursor()
 
-# Create the 'general_data' table
+# Modify the 'general_data' table to add a primary key if not already present
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS general_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- Added primary key
     name TEXT NOT NULL,
     matric_no TEXT UNIQUE NOT NULL,
     level INTEGER,
     department TEXT,
     age INTEGER,
     phone_number TEXT,
+    email TEXT UNIQUE NOT NULL,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     approved BOOLEAN,
@@ -20,12 +22,30 @@ CREATE TABLE IF NOT EXISTS general_data (
 )
 ''')
 
+# Modify the 'user_management' table to include a foreign key linking to 'general_data'
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS user_management (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username INTEGER NOT NULL,  -- Foreign key to link with 'general_data'
+    email TEXT UNIQUE NOT NULL,
+    phone_number TEXT,
+    last_active TEXT,
+    date_added TEXT,
+    role TEXT,
+    FOREIGN KEY (username) REFERENCES general_data (username) ON DELETE CASCADE
+    FOREIGN KEY (phone_number) REFERENCES general_data (phone_number) ON DELETE CASCADE
+    FOREIGN KEY (email) REFERENCES general_data (email) ON DELETE CASCADE
+    FOREIGN KEY (role) REFERENCES general_data (role) ON DELETE CASCADE
+)
+''')
+
+
 # Create the 'student_grading' table
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS student_grading (
     grading_id INTEGER PRIMARY KEY AUTOINCREMENT,
     semester_id INTEGER NOT NULL,
-    matric_no TEXT NOT NULL,
+    matric_no TEXT UNIQUE NOT NULL,
     course_code TEXT NOT NULL,
     assignment_score REAL,
     exam_scores REAL CHECK (exam_scores >= 0 AND exam_scores <= 100),
@@ -65,84 +85,34 @@ cursor.execute('''
     )
 ''')
 
-# Courses
+# Courses table
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS Courses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        department TEXT NOT NULL,
-        level TEXT NOT NULL,
-        
-        course1_name TEXT,
-        course1_code TEXT,
-        course1_unit INTEGER,
-        
-        course2_name TEXT,
-        course2_code TEXT,
-        course2_unit INTEGER,
-        
-        course3_name TEXT,
-        course3_code TEXT,
-        course3_unit INTEGER,
-        
-        course4_name TEXT,
-        course4_code TEXT,
-        course4_unit INTEGER,
-        
-        course5_name TEXT,
-        course5_code TEXT,
-        course5_unit INTEGER,
-        
-        course6_name TEXT,
-        course6_code TEXT,
-        course6_unit INTEGER,
-        
-        course7_name TEXT,
-        course7_code TEXT,
-        course7_unit INTEGER,
-        
-        course8_name TEXT,
-        course8_code TEXT,
-        course8_unit INTEGER,
-        
-        course9_name TEXT,
-        course9_code TEXT,
-        course9_unit INTEGER,
-        
-        course10_name TEXT,
-        course10_code TEXT,
-        course10_unit INTEGER,
-        
-        course11_name TEXT,
-        course11_code TEXT,
-        course11_unit INTEGER,
-        
-        course12_name TEXT,
-        course12_code TEXT,
-        course12_unit INTEGER,
-        
-        course13_name TEXT,
-        course13_code TEXT,
-        course13_unit INTEGER,
-        
-        course14_name TEXT,
-        course14_code TEXT,
-        course14_unit INTEGER,
-        
-        course15_name TEXT,
-        course15_code TEXT,
-        course15_unit INTEGER
+        department TEXT NOT NULL,  -- Reference the department
+        level TEXT NOT NULL,       -- Reference the level (e.g., 100, 200, etc.)
+        session TEXT NOT NULL,     -- e.g., "2023/2024"
+        semester TEXT NOT NULL,    -- e.g., "1st Semester" 
+        course_name TEXT NOT NULL,
+        course_code TEXT UNIQUE NOT NULL,
+        course_unit INTEGER NOT NULL
     )
 ''')
 
-
-
-cursor.execute('''CREATE TABLE IF NOT EXISTS Attendance (
+# Attendance table
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS Attendance (
     attendance_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id INTEGER,
+    matric_no TEXT UNIQUE NOT NULL,
+    course_code TEXT NOT NULL,
     date DATE DEFAULT CURRENT_DATE,
-    status TEXT CHECK(status IN ('Present', 'Absent', 'Tardy')),
-    FOREIGN KEY (student_id) REFERENCES Students(student_id)
+    status TEXT CHECK(status IN ('Present', 'Absent', 'Tardy')) NOT NULL,
+    level TEXT NOT NULL,
+    department TEXT NOT NULL,
+    FOREIGN KEY (matric_no) REFERENCES general_data(matric_no),
+    FOREIGN KEY (course_code) REFERENCES Courses(course_code)
 )''')
+
 
 # Commit the changes and close the connection
 conn.commit()
