@@ -1175,9 +1175,6 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QLabel, QComboBox, QTextEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QWidget
 )
-from PyQt6.QtGui import QFont, QPalette, QColor
-from PyQt6.QtCore import Qt
-import sys
 
 class RegisterCoursesPage(QDialog):
     def __init__(self):
