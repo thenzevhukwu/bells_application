@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtBoundSignal
 from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont
+from PyQt6.QtGui import QPixmap
 
 # Connect to SQLite database
 conn = sqlite3.connect('school_database.db')
@@ -72,24 +73,18 @@ class LandingPage(QMainWindow):
         self.setStyleSheet(
             """
             QMainWindow {
-                background-image: url("bells-img.jpg");
+                background: url("bells-img.jpg");
                 background-repeat: no-repeat;
-                background-position: center;
-                background-size: cover;
+                background-size: cover
+                
+                
+                
             }
             """
         )
 
-        # Create a dark overlay (semi-transparent QWidget)
-        overlay = QWidget(central_widget)
-        overlay.setStyleSheet(
-            """
-            QWidget {
-                background-color: rgba(0, 0, 0, 0.5);  /* Black with 50% opacity */
-            }
-            """
-        )
-        overlay.setGeometry(self.rect())  # Covers the entire window
+        
+        
 
         # Create a layout for text and buttons
         main_layout = QVBoxLayout()
@@ -133,14 +128,15 @@ class LandingPage(QMainWindow):
         main_layout.addSpacing(50)
         main_layout.addWidget(login_button, alignment=Qt.AlignmentFlag.AlignBottom)
 
+   
+        
+        
+
         # Add the layout to the central widget
         central_widget.setLayout(main_layout)
+        
 
-    def resizeEvent(self, event):
-        """Ensure overlay and widgets resize with the window."""
-        for child in self.findChildren(QWidget):
-            child.setGeometry(self.rect())
-        super().resizeEvent(event)
+   
 
     def open_main_login(self):
         # Navigate to next window
@@ -278,6 +274,7 @@ class LoginWindow(QWidget):
         self.main_layout.addWidget(login_frame)
 
         self.main_layout.addWidget(login_frame)
+    
 
     def login(self):
         username = self.username_input.text()
@@ -1155,11 +1152,16 @@ class StudentDashboard(QDialog):
 
     def register_courses(self):
         # Placeholder action for course registration
-        QMessageBox.information(self, "Register Courses", "Course registration window opened.")
+        self.new_window = RegisterCoursesPage()
+        self.new_window.setModal(True)  # Makes the dialog modal
+        self.new_window.exec()  # Opens the dialog modally
 
     def register_hostel(self):
         # Placeholder action for hostel registration
-        QMessageBox.information(self, "Hostel Registration", "Hostel registration window opened.")
+        self.new_window = HostelRegistrationPage()
+        self.new_window.setModal(True)  # Makes the dialog modal
+        self.new_window.exec()  # Opens the dialog modally
+
 
     def print_result(self):
         # Placeholder action for printing results
@@ -1168,7 +1170,195 @@ class StudentDashboard(QDialog):
     def request_id_card(self):
         # Placeholder action for ID card request
         QMessageBox.information(self, "ID Card Request", "ID Card request form opened.")
+    
+from PyQt6.QtWidgets import (
+    QApplication, QDialog, QLabel, QComboBox, QTextEdit, QPushButton,
+    QVBoxLayout, QHBoxLayout, QWidget
+)
+from PyQt6.QtGui import QFont, QPalette, QColor
+from PyQt6.QtCore import Qt
+import sys
 
+class RegisterCoursesPage(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        # Window Properties
+        self.setWindowTitle("Register Courses Page")
+        self.setGeometry(300, 100, 700, 500)
+
+        # Main Layout
+        self.main_layout = QVBoxLayout()
+
+        # Title Section
+        title_label = QLabel("Register Courses")
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Instruction Box
+        instruction_label = QLabel(
+            "You are to select an available session as appropriate. Please note that once registration "
+            "is closed for a particular session/semester, that session/semester would not be available "
+            "for selection. Once a session/semester has been selected and you have passed all necessary "
+            "checks, you can click on any of the tabs 'Course Registration', 'Additional Courses' or "
+            "'View Enrolled Courses' to view, register or delete courses for the semester."
+        )
+        instruction_label.setStyleSheet("background-color: #008040; color: white; padding: 10px;")
+        instruction_label.setWordWrap(True)
+
+        # Session Dropdown
+        session_label = QLabel("SELECT REGISTRATION SESSION:")
+        session_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+
+        self.session_dropdown = QComboBox()
+        self.session_dropdown.addItems(["-- Select Session --", "2022/2023", "2023/2024", "2024/2025"])
+        self.session_dropdown.currentIndexChanged.connect(self.on_session_selected)
+
+        # Layout for the session dropdown
+        session_layout = QHBoxLayout()
+        session_layout.addWidget(session_label)
+        session_layout.addWidget(self.session_dropdown)
+        session_layout.addStretch()
+
+        # Add Widgets to Main Layout
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(instruction_label)
+        self.main_layout.addLayout(session_layout)
+
+        # Placeholder for Level and Department dropdowns
+        self.dynamic_dropdown_layout = QVBoxLayout()
+        self.main_layout.addLayout(self.dynamic_dropdown_layout)
+
+        # Set Layout
+        self.setLayout(self.main_layout)
+
+    def on_session_selected(self, index):
+        """
+        Triggered when a session is selected. Dynamically adds dropdowns for Level and Department.
+        """
+        # Remove existing widgets from dynamic layout
+        self.clear_layout(self.dynamic_dropdown_layout)
+
+        # Check if a valid session is selected
+        if index > 0:
+            # Level Dropdown
+            level_label = QLabel("SELECT LEVEL:")
+            level_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+
+            self.level_dropdown = QComboBox()
+            self.level_dropdown.addItems(["-- Select Level --", "100 Level", "200 Level", "300 Level", "400 Level","500 Level"])
+
+            # Department Dropdown
+            department_label = QLabel("SELECT DEPARTMENT:")
+            department_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+
+            self.department_dropdown = QComboBox()
+            self.department_dropdown.addItems(["-- Select Department --", "Computer Science", "Electrical Engineering", "Mechanical Engineering", "Civil Engineering", "Mechatronic Engineering "])
+
+            # Save Button
+            save_button = QPushButton("Proceed")
+            save_button.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            save_button.setStyleSheet("background-color: red; color: white; border-radius: 5px; padding: 5px;")
+            save_button.setFixedWidth(100)
+            save_button.clicked.connect(self.proceed_action)
+
+            # Add widgets to dynamic layout
+            self.dynamic_dropdown_layout.addWidget(level_label)
+            self.dynamic_dropdown_layout.addWidget(self.level_dropdown)
+            self.dynamic_dropdown_layout.addWidget(department_label)
+            self.dynamic_dropdown_layout.addWidget(self.department_dropdown)
+            self.dynamic_dropdown_layout.addWidget(save_button)
+
+    def proceed_action(self):
+        """
+        Placeholder for the action when 'Proceed' is clicked.
+        """
+        level = self.level_dropdown.currentText()
+        department = self.department_dropdown.currentText()
+        print(f"Selected Level: {level}, Selected Department: {department}")
+
+    def clear_layout(self, layout):
+        """
+        Clears all widgets from a given layout.
+        """
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+
+
+class HostelRegistrationPage(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        # Window properties
+        self.setWindowTitle("Hostel Registration Page")
+        self.setGeometry(300, 100, 600, 400)
+
+        # Main Layout
+        main_layout = QVBoxLayout()
+        
+        # Section 1: Title
+        title_label = QLabel("Please choose your Hostel below:")
+        title_label.setFont(QFont("Arial", 12))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Section 2: Dropdown Selection
+        dropdown_layout = QHBoxLayout()
+        select_label = QLabel("SELECT YOUR HOSTEL:")
+        select_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+
+        self.hostel_dropdown = QComboBox()
+        self.hostel_dropdown.addItems(["-- Select Hostel --", "Hostel A", "Hostel B", "Hostel C", "Hostel D"])
+        self.hostel_dropdown.setFixedWidth(150)
+
+        dropdown_layout.addWidget(select_label)
+        dropdown_layout.addWidget(self.hostel_dropdown)
+        dropdown_layout.addStretch()
+
+        # Section 3: Text Input
+        info_label = QLabel("STATE ANY IMPORTANT INFORMATION BELOW:")
+        info_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+
+        self.info_text = QTextEdit()
+        self.info_text.setPlaceholderText(
+            "e.g. Your Phone Type, Laptop, Valuables etc. you are bringing along with you "
+            "or other information worth knowing. Note: This will appear on your Hostel "
+            "Registration form."
+        )
+        self.info_text.setFixedHeight(100)
+
+        # Section 4: Save Button
+        button_layout = QHBoxLayout()
+        save_button = QPushButton("Save")
+        save_button.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        save_button.setStyleSheet(
+            "QPushButton {"
+            "background-color: red; color: white; border: 2px solid black; border-radius: 5px;"
+            "padding: 5px;"
+            "}"
+            "QPushButton:hover {"
+            "background-color: darkred;"
+            "}"
+        )
+        save_button.setFixedWidth(70)
+        button_layout.addStretch()
+        button_layout.addWidget(save_button)
+
+        # Add widgets to main layout
+        main_layout.addWidget(title_label)
+        main_layout.addLayout(dropdown_layout)
+        main_layout.addWidget(info_label)
+        main_layout.addWidget(self.info_text)
+        main_layout.addLayout(button_layout)
+
+        # Set the main layout
+        self.setLayout(main_layout)
+
+        
+
+        
 
 class TeacherDashboard(QDialog):
     def __init__(self, teacher_data):
