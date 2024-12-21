@@ -8,11 +8,19 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtBoundSignal
+<<<<<<< HEAD
 from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont
 from PyQt6.QtGui import QPixmap
+=======
+from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont, QIntValidator
+import subprocess
+
+subprocess.run(['python', 'configure_db.py'])
+
+>>>>>>> 488143f1cd31eb16339ed77de70021b2e28505ab
 
 # Connect to SQLite database
-conn = sqlite3.connect('school_database.db')
+conn = sqlite3.connect('assets/school_database.db')
 cursor = conn.cursor()
 
 
@@ -23,35 +31,64 @@ def hash_password(password):
 
 # Create initial admin and teacher accounts
 def create_admin_user():
+    # Check if the admin user exists
     cursor.execute("SELECT * FROM general_data WHERE username = ?", ('admin-user',))
     admin = cursor.fetchone()
     if not admin:
         admin_password = hash_password('admin-admin')
         cursor.execute(
-            "INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, role, approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ('Admin User', 'ADMIN001', 0, 'Admin Department', 0, '0000000000', 'admin-user', admin_password, 'admin', 1)
+            """
+            INSERT INTO general_data 
+            (name, matric_no, level, department, age, phone_number, username, password, email, role, approved) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ('Admin User', 'ADMIN001', 0, 'Admin Department', 0, '0000000000',
+             'admin-user', admin_password, 'admin@example.com', 'Admin', 1)
         )
         conn.commit()
 
-    cursor.execute("SELECT * FROM general_data WHERE username = ?", ('SANGO',))
+    # Check if the teacher user exists
+    cursor.execute("SELECT * FROM general_data WHERE username = ?", ('Florence',))
     teacher = cursor.fetchone()
     if not teacher:
-        teacher_password = hash_password('NOSA')
+        teacher_password = hash_password('fshaw')
         cursor.execute(
-            "INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, role, approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ('Teacher Name', 'TEACH001', 0, 'Teacher Department', 0, '0000000000', 'SANGO', teacher_password, 'teacher',
-             1)
+            """
+            INSERT INTO general_data 
+            (name, matric_no, level, department, age, phone_number, username, password, email, role, approved) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("Florence Shaw", "M12345", 300, "Computer Science", 21, "123-456-7890",
+             "Florence", teacher_password, "florence123@gmail.com", "Teacher", 1)
+        )
+        conn.commit()
+
+    # Check if the student user exists
+    cursor.execute("SELECT * FROM general_data WHERE username = ?", ('John',))
+    student = cursor.fetchone()
+    if not student:
+        student_password = hash_password('fshaw')
+        cursor.execute(
+            """
+            INSERT INTO general_data 
+            (name, matric_no, level, department, age, phone_number, username, password, email, role, approved) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("John Doe", "2022/12578", 200, "Computer Engineering", 17, "123-456-7890",
+             "John", student_password, "john123@gmail.com", "Student", 1)
         )
         conn.commit()
 
 
+# Call the function to create admin and teacher users
 create_admin_user()
 
 
 # Retrieve a student's details
 def get_student_biodata(username):
-    cursor.execute("SELECT matric_no, name, level, department, phone_number FROM general_data WHERE username = ?",
-                   (username,))
+    cursor.execute(
+        "SELECT matric_no, name, level, department, email, phone_number FROM general_data WHERE username = ?",
+        (username,))
     return cursor.fetchone()
 
 
@@ -70,7 +107,19 @@ class LandingPage(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Apply background image using stylesheet
+        # Dynamically resolve the path for bells-img.jpg
+        def resource_path(relative_path):
+            """Get the absolute path to resource files for both development and packaged states."""
+            if hasattr(sys, '_MEIPASS'):  # When bundled with PyInstaller
+                return os.path.join(sys._MEIPASS, relative_path)
+            return os.path.join(os.path.abspath("."), relative_path)
+
+        image_path = resource_path("assets/bells-img.jpg")
+        print("Resolved image path:", image_path)
+
+        # Set the stylesheet dynamically using the resolved image path
         self.setStyleSheet(
+<<<<<<< HEAD
             """
             QMainWindow {
                 background: url("bells-img.jpg");
@@ -85,6 +134,30 @@ class LandingPage(QMainWindow):
 
         
         
+=======
+            f"""
+        QMainWindow {{
+            background-image: url("{image_path.replace('\\', '/')}");  /* Convert backslashes to forward slashes */
+            background-repeat: no-repeat;
+            background-position: center;
+        }}
+        """
+        )
+
+        # Create a dark overlay (semi-transparent QWidget)
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+
+        overlay = QWidget(central_widget)
+        overlay.setStyleSheet(
+            """
+            QWidget {
+                background-color: rgba(0, 0, 0, 0.5);  /* Black with 50% opacity */
+            }
+            """
+        )
+        overlay.setGeometry(self.rect())  # Covers the entire window
+>>>>>>> 488143f1cd31eb16339ed77de70021b2e28505ab
 
         # Create a layout for text and buttons
         main_layout = QVBoxLayout()
@@ -286,26 +359,26 @@ class LoginWindow(QWidget):
         )
         user = cursor.fetchone()
 
-        if user and user[8]:  # Account approved (column approved is at index 8)
-            if user[9] == 'admin':  # Role column is at index 9
+        if user and user[10]:  # Account approved (column approved is at index 8)
+            if user[11] == 'admin' or 'Admin':  # Role column is at index 9
                 self.open_admin_panel()
-            elif user[9] == 'teacher':
+            elif user[11] == 'teacher' or 'Teacher':
                 QMessageBox.information(self, 'Teacher', 'Logged in successfully')
                 teacher_data = {
-                    'name': user[0],  # Assuming user[0] is the name
-                    'username': user[7],  # Assuming user[7] is the username
-                    'department': user[3],  # Assuming user[3] is the department
-                    'phone_number': user[5],  # Assuming user[5] is the phone number
+                    'name': user[1],  # Assuming user[0] is the name
+                    'username': user[9],  # Assuming user[7] is the username
+                    'department': user[9],  # Assuming user[3] is the department
+                    'phone_number': user[6],  # Assuming user[5] is the phone number
                 }
                 self.open_teacher_dashboard(teacher_data)
             else:
                 QMessageBox.information(self, 'Student', 'Logged in successfully')
                 student_data = {
-                    'name': user[0],  # Assuming user[0] is the name
-                    'matric_no': user[1],  # Assuming user[1] is the matric number
-                    'level': user[2],  # Assuming user[2] is the level
-                    'department': user[3],  # Assuming user[3] is the department
-                    'phone_number': user[5],  # Assuming user[5] is the phone number
+                    'name': user[1],  # Assuming user[0] is the name
+                    'matric_no': user[2],  # Assuming user[1] is the matric number
+                    'level': user[3],  # Assuming user[2] is the level
+                    'department': user[4],  # Assuming user[3] is the department
+                    'phone_number': user[6],  # Assuming user[5] is the phone number
                 }
                 self.open_student_dashboard(student_data)
         else:
@@ -327,12 +400,10 @@ class LoginWindow(QWidget):
         forgot_password_dialog = ForgotPasswordDialog(self)  # Pass the parent for modality
         forgot_password_dialog.exec()  # Show the dialog modally
 
-
     def open_signup_dialog(self):
         """Opens the sign-up dialog."""
         signup_dialog = CreateAccountDialog(self)  # Instantiate the dialog
         signup_dialog.exec()  # Show the dialog modally
-
 
     def toggle_password_visibility(self):
         if self.password_input.echoMode() == QLineEdit.EchoMode.Password:
@@ -438,7 +509,7 @@ class ForgotPasswordDialog(QDialog):
 
         # Simulated validation logic for the security question and username
         # In a real application, fetch data from the database to verify details
-        conn = sqlite3.connect("school_database.db")
+        conn = sqlite3.connect("assets/school_database.db")
         cursor = conn.cursor()
 
         try:
@@ -538,9 +609,6 @@ class CreateAccountDialog(QDialog):
 
         hashed_password = hash_password(password)
 
-        # Insert data into the existing general_data table
-        conn = sqlite3.connect('school_database.db')
-        cursor = conn.cursor()
         try:
             cursor.execute('''
                 INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, approved, role)
@@ -641,27 +709,28 @@ class UserManagementDialog(QDialog):
 
             dialog = QDialog(self)
             dialog.setWindowTitle("User Profiles")
-            dialog.setGeometry(150, 150, 600, 400)
+            dialog.setGeometry(150, 150, 1200, 720)
 
             layout = QVBoxLayout()
 
             table = QTableWidget()
             table.setRowCount(len(users))
-            table.setColumnCount(10)
+            table.setColumnCount(12)
             table.setHorizontalHeaderLabels([
-                "Name", "Matric No", "Level", "Department", "Age",
-                "Phone number", "Username", "Password", "Approved", "Role"
+                "ID", "Name", "Matric Number", "Level", "Department",
+                "Age", "Phone Number", "Email", "Username", "Password", "Approved", "Role"
             ])
 
             # Populate the table and make cells editable
             for i, user in enumerate(users):
-                for j in range(10):
+                for j in range(12):
                     item = QTableWidgetItem(str(user[j]))
                     table.setItem(i, j, item)
 
             layout.addWidget(table)
 
-            # Add the 'Done' button
+            # Add the 'Save Changes' and 'Done' buttons
+            save_button = QPushButton("Save Changes")
             done_button = QPushButton("Done")
 
             # Function to save changes to the database
@@ -673,23 +742,26 @@ class UserManagementDialog(QDialog):
                             updated_values.append(table.item(i, j).text())
 
                         update_query = """
-                            UPDATE general_data 
-                            SET name = ?, matric_no = ?, level = ?, department = ?, age = ?, 
-                                phone_number = ?, username = ?, password = ?, approved = ?, role = ?
-                            WHERE matric_no = ?
-                        """
+                        UPDATE general_data 
+                        SET name = ?, matric_no = ?, level = ?, department = ?, age = ?, 
+                            phone_number = ?, email = ?, username = ?, password = ?, approved = ?, role = ?
+                        WHERE matric_no = ?
+                    """
                         # Execute the update query using matric_no as the unique identifier
-                        cursor.execute(update_query, (*updated_values, updated_values[1]))
+                        cursor.execute(update_query, (*updated_values[1:], updated_values[2]))
 
                     conn.commit()  # Commit changes after all updates
                     QMessageBox.information(self, "Info", "Changes saved successfully.")
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"An error occurred while saving changes: {e}")
-                finally:
-                    dialog.accept()  # Close the dialog after saving or in case of error
 
-            done_button.clicked.connect(save_changes)
-            layout.addWidget(done_button)
+            save_button.clicked.connect(save_changes)
+            done_button.clicked.connect(dialog.accept)  # Close the dialog without saving
+
+            button_layout = QHBoxLayout()
+            button_layout.addWidget(save_button)
+            button_layout.addWidget(done_button)
+            layout.addLayout(button_layout)
 
             dialog.setLayout(layout)
             dialog.exec()
@@ -750,50 +822,90 @@ class AddUserDialog(QDialog):
         self.setGeometry(200, 200, 400, 300)
         layout = QFormLayout()
 
+        # Input fields
         self.name_input = QLineEdit()
         self.matric_no_input = QLineEdit()
+        self.department_input = QLineEdit()
+        self.level_input = QComboBox(self)
+        self.level_input.addItems(["100", "200", "300", "400", "500"])
+        self.age_input = QLineEdit()
+        self.age_input.setValidator(QIntValidator(12, 75, self))  # Age restricted to 12-75
+        self.phone_number_input = QLineEdit()
+        self.email_input = QLineEdit()
         self.username_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.role_input = QLineEdit()  # Role input
+        self.role_input = QComboBox(self)
+        self.role_input.addItems(["Student", "Teacher", "Admin"])
 
+        # Add input fields to layout
         layout.addRow("Name:", self.name_input)
         layout.addRow("Matric No:", self.matric_no_input)
+        layout.addRow("Department:", self.department_input)
+        layout.addRow("Level:", self.level_input)
+        layout.addRow("Age:", self.age_input)
+        layout.addRow("Phone Number:", self.phone_number_input)
+        layout.addRow("Email:", self.email_input)
         layout.addRow("Username:", self.username_input)
         layout.addRow("Password:", self.password_input)
-        layout.addRow("Role (student/admin/teacher):", self.role_input)
+        layout.addRow("Role:", self.role_input)
 
+        # Add button
         self.add_button = QPushButton("Add User")
         self.add_button.clicked.connect(self.add_user_to_db)
         layout.addRow(self.add_button)
+
         self.setLayout(layout)
 
     def add_user_to_db(self):
+        # Collect input values
         name = self.name_input.text()
         matric_no = self.matric_no_input.text()
+        department = self.department_input.text()
+        level = self.level_input.currentText()
+        age = self.age_input.text()
+        phone_number = self.phone_number_input.text()
+        email = self.email_input.text()
         username = self.username_input.text()
         password = self.password_input.text()
-        role = self.role_input.text()
+        role = self.role_input.currentText()
 
-        if not name or not matric_no or not username or not password or not role:
+        # Validate required fields
+        if not all([name, matric_no, department, level, age, phone_number, email, username, password, role]):
             QMessageBox.warning(self, "Error", "All fields are required.")
             return
 
-        hashed_password = hash_password(password)
+        # Validate age as an integer
         try:
-            cursor.execute("SELECT * FROM general_data WHERE username = ?", (username,))
+            age = int(age)
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Age must be a valid integer.")
+            return
+
+        # Hash the password
+        hashed_password = hash_password(password)
+
+        try:
+            # Check for existing username or email
+            cursor.execute("SELECT * FROM general_data WHERE username = ? OR email = ?", (username, email))
             existing_user = cursor.fetchone()
             if existing_user:
-                QMessageBox.warning(self, "Error", "Username already exists.")
+                QMessageBox.warning(self, "Error", "Username or email already exists.")
                 return
 
+            # Insert the new user into the database
             cursor.execute(
-                "INSERT INTO general_data (name, matric_no, username, password, approved, role) VALUES (?, ?, ?, ?, ?, ?)",
-                (name, matric_no, username, hashed_password, 1, role)  # Automatically approve for admin
+                "INSERT INTO general_data "
+                "(name, matric_no, level, department, age, phone_number, email, username, password, approved, role) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (name, matric_no, level, department, age, phone_number, email, username, hashed_password, 1, role)
+                # Automatically approve for admin
             )
             conn.commit()
+
             QMessageBox.information(self, "Success", "User added successfully.")
             self.accept()
+
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Error", f"Database error: {e}")
 
@@ -877,7 +989,7 @@ class AddCourseDialog(QDialog):
 
         # Connect to the database
         try:
-            self.conn = sqlite3.connect("school_database.db")  # Replace with actual path
+            self.conn = sqlite3.connect("assets/school_database.db")  # Replace with actual path
             self.cursor = self.conn.cursor()
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Error", f"Could not connect to database: {e}")
@@ -886,38 +998,40 @@ class AddCourseDialog(QDialog):
         # Main layout
         self.layout = QVBoxLayout()
 
-        # Level Selection Field (using QComboBox for predefined options)
+        # Level Selection Field
         self.level_input = QComboBox()
         self.level_input.addItems(["100L", "200L", "300L", "400L", "500L"])
 
         # Department Selection Field
         self.department_input = QComboBox()
-        self.department_input.addItems(["Biochemistry", "Industrial Chemistry", "Microbiology", "Applied Mathematics",
-                                        "Statistics", "Biotechnology", "Computer Scence", "Information Technology",
+        self.department_input.addItems([
+            "Biochemistry", "Industrial Chemistry", "Microbiology", "Applied Mathematics", "Statistics",
+            "Biotechnology", "Computer Science", "Information Technology", "Mechanical Engineering",
+            "Mechatronics Engineering", "Civil Engineering", "Biomedical Engineering",
+            "Telecommunication Engineering", "Electrical/Electronics Engineering",
+            "Agricultural and Bioresources Engineering", "Human Resources Management", "Accounting",
+            "Economics", "Marketing", "Business Computing", "International Business",
+            "Project Management Tech", "Transport Management and Logistics", "Food Technology",
+            "Nutrition and Dietetics"
+        ])
 
-                                        "Mechanical Engineering", "Mechatronics Engineering", "Civil Engineering",
-                                        "Biomedical Engineering",
-                                        "Telecommunication Engineering", "Electrical/Electronics Engineering",
-                                        "Agricultural and Bioresources Engineering",
-
-                                        "Human Resources Management", "Accounting", "Economics", "Marketing",
-                                        "Business Computing", "International Business",
-                                        "Project Management Tech", "Transport Management and Logistics",
-
-                                        "Food Technology", "Nutrition and Dietetics"])
+        # Session and Semester Fields
+        self.session_input = QLineEdit()
+        self.semester_input = QComboBox()
+        self.semester_input.addItems(["1st Semester", "2nd Semester"])
 
         self.layout.addWidget(QLabel("Department:"))
         self.layout.addWidget(self.department_input)
         self.layout.addWidget(QLabel("Level:"))
         self.layout.addWidget(self.level_input)
+        self.layout.addWidget(QLabel("Session (e.g., 2023/2024):"))
+        self.layout.addWidget(self.session_input)
+        self.layout.addWidget(QLabel("Semester:"))
+        self.layout.addWidget(self.semester_input)
 
         # Courses container layout
         self.courses_layout = QVBoxLayout()
         self.course_inputs = []
-
-        # Initially add three course input rows
-        for _ in range(3):
-            self.add_course_fields()
 
         # Scroll area for course fields
         scroll_area = QScrollArea()
@@ -927,7 +1041,7 @@ class AddCourseDialog(QDialog):
         scroll_area.setWidgetResizable(True)
         self.layout.addWidget(scroll_area)
 
-        # Button to add more courses
+        # Button to add more courses dynamically
         self.add_more_button = QPushButton("Add More Courses")
         self.add_more_button.clicked.connect(self.add_course_fields)
         self.layout.addWidget(self.add_more_button)
@@ -939,24 +1053,23 @@ class AddCourseDialog(QDialog):
 
         self.setLayout(self.layout)
 
-    def add_course_fields(self):
-        # Limit to a maximum of 15 courses
-        if len(self.course_inputs) >= 15:
-            QMessageBox.warning(self, "Limit Reached", "You can only add up to 15 courses.")
-            return
+        # Add initial course fields
+        for _ in range(1):  # Add three rows by default
+            self.add_course_fields()
 
-        # Course input row
+    def add_course_fields(self):
+        # Dynamic addition of course rows
         course_layout = QHBoxLayout()
         course_name = QLineEdit()
         course_code = QLineEdit()
         course_unit = QSpinBox()
         course_unit.setRange(1, 6)  # Assuming course units range from 1 to 6
 
-        course_layout.addWidget(QLabel(f"Course {len(self.course_inputs) + 1} Name:"))
-        course_layout.addWidget(course_name)
-        course_layout.addWidget(QLabel("Code:"))
+        course_layout.addWidget(QLabel("Course Code:"))
         course_layout.addWidget(course_code)
-        course_layout.addWidget(QLabel("Unit:"))
+        course_layout.addWidget(QLabel(f"Course Name:"))
+        course_layout.addWidget(course_name)
+        course_layout.addWidget(QLabel("Units:"))
         course_layout.addWidget(course_unit)
 
         # Store inputs for later retrieval
@@ -964,64 +1077,49 @@ class AddCourseDialog(QDialog):
         self.courses_layout.addLayout(course_layout)
 
     def add_courses_to_db(self):
-        department = self.department_input.text()
-        level = self.level_input.currentText()
+        department = self.department_input.currentText().strip()
+        level = self.level_input.currentText().strip()
+        session = self.session_input.text().strip()
+        semester = self.semester_input.currentText().strip()
+
+        # Validate required fields
+        if not department or not level or not session or not semester:
+            QMessageBox.warning(self, "Error", "All fields (Department, Level, Session, and Semester) are required.")
+            return
 
         # Gather course information
         courses = []
         for course_name_input, course_code_input, course_unit_input in self.course_inputs:
-            course_name = course_name_input.text()
-            course_code = course_code_input.text()
+            course_name = course_name_input.text().strip()
+            course_code = course_code_input.text().strip()
             course_unit = course_unit_input.value()
 
             if course_name and course_code:
-                courses.append((course_name, course_code, course_unit))
+                courses.append((department, level, session, semester, course_name, course_code, course_unit))
 
-        if not department or not courses:
-            QMessageBox.warning(self, "Error", "Department and at least one course with valid details are required.")
+        if not courses:
+            QMessageBox.warning(self, "Error", "At least one course with valid details is required.")
             return
 
         try:
-            # SQL for insertion
+            # Insert courses into the database
             query = '''
-                INSERT INTO Courses (
-                    department,
-                    level,
-                    course1_name, course1_code, course1_unit,
-                    course2_name, course2_code, course2_unit,
-                    course3_name, course3_code, course3_unit,
-                    course4_name, course4_code, course4_unit,
-                    course5_name, course5_code, course5_unit,
-                    course6_name, course6_code, course6_unit,
-                    course7_name, course7_code, course7_unit,
-                    course8_name, course8_code, course8_unit,
-                    course9_name, course9_code, course9_unit,
-                    course10_name, course10_code, course10_unit,
-                    course11_name, course11_code, course11_unit,
-                    course12_name, course12_code, course12_unit,
-                    course13_name, course13_code, course13_unit,
-                    course14_name, course14_code, course14_unit,
-                    course15_name, course15_code, course15_unit
-                ) VALUES (?, ?, 
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO Courses (department, level, session, semester, course_name, course_code, course_unit)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             '''
-
-            # Prepare values
-            values = [department, level]
-            for i in range(15):
-                if i < len(courses):
-                    values.extend(courses[i])
-                else:
-                    values.extend([None, None, None])  # Fill with None for unused courses
-
-            # Execute and commit to the database
-            self.cursor.execute(query, values)
+            self.cursor.executemany(query, courses)  # Insert multiple rows at once
             self.conn.commit()
+
             QMessageBox.information(self, "Success", "Courses added successfully.")
             self.accept()
 
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Error", f"Database error: {e}")
+
+    def closeEvent(self, event):
+        # Close database connection when dialog is closed
+        if self.conn:
+            self.conn.close()
 
 
 # Dialog for editing a course
@@ -1459,6 +1557,7 @@ class MainWindow(QMainWindow):
 
 # Main execution of the application
 app = QApplication(sys.argv)
+app.setWindowIcon(QIcon('assets/university_logo.png'))  # Replace with your favicon path
 window = MainWindow()
 window.show()
 sys.exit(app.exec())
