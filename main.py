@@ -1,22 +1,83 @@
 import sys
 import sqlite3
 import hashlib
-import os
+from datetime import datetime
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
-    QMessageBox, QDialog, QFormLayout, QTableWidget, QTabWidget, QTableWidgetItem, QComboBox, QSpinBox, QHeaderView,
-    QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget, QFrame
+    QMessageBox, QDialog, QFormLayout, QTableWidget, QTableWidgetItem, QComboBox, QSpinBox, QHeaderView,
+    QHBoxLayout, QScrollArea, QMainWindow, QStackedWidget, QFrame, QGroupBox, QGridLayout, QTextEdit, QCalendarWidget,
+    QListWidget, QTabWidget, QProgressBar
 )
-from PyQt6.QtCore import Qt, pyqtBoundSignal
-from PyQt6.QtGui import QFontDatabase, QIcon, QPalette, QColor, QFont, QIntValidator
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon, QFont, QIntValidator
 import subprocess
 
-subprocess.run(['python', 'configure_db.py'])
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 
+from pyqtgraph import PlotWidget, BarGraphItem
+
+subprocess.run(['python', 'configure_db.py'])
 
 # Connect to SQLite database
 conn = sqlite3.connect('assets/school_database.db')
 cursor = conn.cursor()
+
+
+# Define the database update function
+def update_user_management():
+    conn = sqlite3.connect('assets/school_database.db')
+    cursor = conn.cursor()
+
+    try:
+        # Fetch data from the 'general_data' table
+        cursor.execute('''
+        SELECT username, email, phone_number, role FROM general_data
+        ''')
+        general_data_rows = cursor.fetchall()
+
+        for row in general_data_rows:
+            username, email, phone_number, role = row
+
+            # Check if the record exists in the 'user_management' table
+            cursor.execute('''
+            SELECT id FROM user_management WHERE username = ?
+            ''', (username,))
+            record = cursor.fetchone()
+
+            if record:
+                # Update the existing record
+                cursor.execute('''
+                UPDATE user_management
+                SET email = ?, phone_number = ?, role = ?, last_active = ?
+                WHERE username = ?
+                ''', (email, phone_number, role, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username))
+            else:
+                # Insert a new record into the table
+                cursor.execute('''
+                INSERT INTO user_management (username, email, phone_number, role, date_added, last_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''', (username, email, phone_number, role, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                      datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+        # Commit changes to the database
+        conn.commit()
+        print("User management table updated successfully.")
+
+    except sqlite3.ProgrammingError as e:
+        print(f"ProgrammingError: {e}")
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+
+    finally:
+        # Ensure the connection is closed
+        cursor.close()  # Close the cursor explicitly
+        conn.close()  # Close the connection explicitly
+
+
+# Execute the update function
+update_user_management()
 
 
 # Helper function to hash passwords
@@ -101,41 +162,29 @@ class LandingPage(QMainWindow):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
 
-        # Apply background image using stylesheet
-        # Dynamically resolve the path for bells-img.jpg
-        def resource_path(relative_path):
-            """Get the absolute path to resource files for both development and packaged states."""
-            if hasattr(sys, '_MEIPASS'):  # When bundled with PyInstaller
-                return os.path.join(sys._MEIPASS, relative_path)
-            return os.path.join(os.path.abspath("."), relative_path)
-
-        image_path = resource_path("assets/bells-img.jpg")
-        print("Resolved image path:", image_path)
-
         # Set the stylesheet dynamically using the resolved image path
         self.setStyleSheet(
             f"""
         QMainWindow {{
-            background-image: url("{image_path.replace('\\', '/')}");  /* Convert backslashes to forward slashes */
+            background-image: url("assets/bells-img.jpg");  /* Convert backslashes to forward slashes */
             background-repeat: no-repeat;
             background-position: center;
+            background-size: 100% 100%; /* Ensure image covers entire window */
         }}
         """
         )
 
         # Create a dark overlay (semi-transparent QWidget)
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-
-        overlay = QWidget(central_widget)
-        overlay.setStyleSheet(
+        self.overlay = QWidget(self.centralWidget())
+        self.overlay.setObjectName("overlay")
+        self.overlay.setStyleSheet(
             """
-            QWidget {
+            QWidget#overlay {
                 background-color: rgba(0, 0, 0, 0.5);  /* Black with 50% opacity */
             }
             """
         )
-        overlay.setGeometry(self.rect())  # Covers the entire window
+        self.overlay.setGeometry(self.rect())  # Initially covers the entire window
 
         # Create a layout for text and buttons
         main_layout = QVBoxLayout()
@@ -183,9 +232,10 @@ class LandingPage(QMainWindow):
         central_widget.setLayout(main_layout)
 
     def resizeEvent(self, event):
-        """Ensure overlay and widgets resize with the window."""
-        for child in self.findChildren(QWidget):
-            child.setGeometry(self.rect())
+        """Ensure the overlay resizes with the window without affecting other widgets."""
+        overlay = self.findChild(QWidget, "overlay")
+        if overlay:
+            overlay.setGeometry(self.rect())  # Resize only the overlay to cover the window
         super().resizeEvent(event)
 
     def open_main_login(self):
@@ -336,19 +386,17 @@ class LoginWindow(QWidget):
         user = cursor.fetchone()
 
         if user and user[10]:  # Account approved (column approved is at index 8)
-            if user[11] == 'admin' or 'Admin':  # Role column is at index 9
+            if user[11] == 'Admin':  # Role column is at index 9
                 self.open_admin_panel()
-            elif user[11] == 'teacher' or 'Teacher':
-                QMessageBox.information(self, 'Teacher', 'Logged in successfully')
+            elif user[11] == 'Teacher':
                 teacher_data = {
                     'name': user[1],  # Assuming user[0] is the name
-                    'username': user[9],  # Assuming user[7] is the username
-                    'department': user[9],  # Assuming user[3] is the department
+                    'username': user[8],  # Assuming user[7] is the username
+                    'department': user[4],  # Assuming user[3] is the department
                     'phone_number': user[6],  # Assuming user[5] is the phone number
                 }
                 self.open_teacher_dashboard(teacher_data)
             else:
-                QMessageBox.information(self, 'Student', 'Logged in successfully')
                 student_data = {
                     'name': user[1],  # Assuming user[0] is the name
                     'matric_no': user[2],  # Assuming user[1] is the matric number
@@ -483,11 +531,6 @@ class ForgotPasswordDialog(QDialog):
             QMessageBox.warning(self, "Error", "Passwords do not match.")
             return
 
-        # Simulated validation logic for the security question and username
-        # In a real application, fetch data from the database to verify details
-        conn = sqlite3.connect("assets/school_database.db")
-        cursor = conn.cursor()
-
         try:
             cursor.execute("SELECT security_answer FROM general_data WHERE username = ?", (username,))
             result = cursor.fetchone()
@@ -602,79 +645,297 @@ class CreateAccountDialog(QDialog):
 class AdminPanel(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Admin Panel")
-        self.setGeometry(100, 100, 800, 600)
-        self.layout = QVBoxLayout()
+        self.setWindowTitle("University Admin Panel")
+        self.setGeometry(100, 100, 1080, 720)
 
-        # Initialize buttons for admin options
-        self.user_management_button = QPushButton("User Management")
-        self.user_management_button.clicked.connect(self.open_user_management)
+        # Database connection
+        self.conn = sqlite3.connect("assets/school_database.db")
 
-        self.program_course_management_button = QPushButton("Manage Academic Programs and Courses")
-        self.program_course_management_button.clicked.connect(self.open_program_course_management)
+        # White background for the dialog
+        self.setStyleSheet("""
+            QWidget {
+                background-color: white; 
+                color: black;
+            }
+        """)
 
-        self.logout_button = QPushButton("Logout")
-        self.logout_button.clicked.connect(self.logout)
+        # Main layout
+        main_layout = QHBoxLayout(self)
 
-        # Add buttons to layout
-        self.layout.addWidget(self.user_management_button)
-        self.layout.addWidget(self.program_course_management_button)
-        self.layout.addWidget(self.logout_button)
-        self.setLayout(self.layout)
+        # Sidebar
+        self.sidebar = self.create_sidebar()
+        main_layout.addWidget(self.sidebar)
 
-    def open_user_management(self):
-        dialog = UserManagementDialog()
-        dialog.exec()
+        # Content area
+        self.content_area = QStackedWidget()
+        main_layout.addWidget(self.content_area, 1)
 
-    def open_program_course_management(self):
-        dialog = ProgramCourseManagementDialog()
-        dialog.exec()
+        # Add modules to the content area
+        self.add_modules()
+
+    def create_sidebar(self):
+        sidebar = QWidget()
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Navigation items
+        nav_items = [
+            ("Dashboard", self.show_dashboard),
+            ("User Management", self.show_user_management),
+            ("Programs and Courses", self.show_program_course_management),
+            ("Attendance", self.show_attendance_management),
+            ("Analytics", self.show_analytics),
+            ("Notifications", self.show_notifications),
+            ("Logout", self.logout),
+        ]
+
+        self.sidebar_buttons = []
+        for item_name, callback in nav_items:
+            button = QPushButton(item_name)
+            button.setFont(QFont("Artifakt Element Medium", 12))
+            button.setStyleSheet("""
+                QPushButton {
+                    padding: 10px 20px;  /* Add padding around the text */ 
+                    border-radius: 5px; /* Optional: Add rounded corners */
+                    background-color: #002147;
+                    color: white;
+                }
+                QPushButton:hover {
+                    background-color: #024ca1;  /* Optional: Add hover effect */
+                }
+            """)
+            button.clicked.connect(callback)
+            self.sidebar_buttons.append(button)
+            sidebar_layout.addWidget(button)
+
+        return sidebar
+
+    def add_modules(self):
+        # Create instances of all modules
+        self.dashboard = DashboardAnalytics(self.conn)
+        self.user_management = UserManagementModule(self.conn)
+        self.program_course_management = ProgramCourseManagement(self.conn)
+        self.attendance_management = AttendanceAnalytics(self.conn)
+        self.notifications = Notifications()
+        self.analytics = Analytics(self.conn)
+
+        # Add modules to the content area
+        self.content_area.addWidget(self.dashboard)
+        self.content_area.addWidget(self.user_management)
+        self.content_area.addWidget(self.program_course_management)
+        self.content_area.addWidget(self.attendance_management)
+        self.content_area.addWidget(self.analytics)
+        self.content_area.addWidget(self.notifications)
+
+    # Navigation functions
+    def show_dashboard(self):
+        self.content_area.setCurrentWidget(self.dashboard)
+
+    def show_user_management(self):
+        self.content_area.setCurrentWidget(self.user_management)
+
+    def show_program_course_management(self):
+        self.content_area.setCurrentWidget(self.program_course_management)
+
+    def show_attendance_management(self):
+        self.content_area.setCurrentWidget(self.attendance_management)
+
+    def show_analytics(self):
+        self.content_area.setCurrentWidget(self.analytics)
+
+    def show_notifications(self):
+        self.content_area.setCurrentWidget(self.notifications)
 
     def logout(self):
-        self.close()
-        window.show()
+        reply = QMessageBox.question(self, "Logout", "Are you sure you want to logout?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.conn.close()
+            self.close()
 
 
-# Dialog for User Management
-class UserManagementDialog(QDialog):
-    def __init__(self):
+class DashboardAnalytics(QWidget):
+    def __init__(self, conn):
         super().__init__()
-        self.setWindowTitle("User Management")
-        self.setGeometry(150, 150, 500, 400)
-        self.layout = QVBoxLayout()
+        self.conn = conn
+        layout = QVBoxLayout(self)
 
-        self.view_profile_button = QPushButton("View Profiles")
-        self.view_profile_button.clicked.connect(self.view_profiles)
+        # Header
+        header = QLabel("Dashboard Overview")
+        header.setFont(QFont("Artifakt Element Medium", 20))
+        layout.addWidget(header)
 
+        # Analytics Grid
+        grid = QGridLayout()
+        layout.addLayout(grid)
+
+        metrics = self.get_dashboard_metrics()
+        for i, (metric_name, value) in enumerate(metrics.items()):
+            group = QGroupBox(metric_name)
+            group_layout = QVBoxLayout(group)
+            value_label = QLabel(value)
+            value_label.setFont(QFont("Arial", 12))
+            group_layout.addWidget(value_label)
+            grid.addWidget(group, i // 2, i % 2)
+
+    def get_dashboard_metrics(self):
+        # Fetch data for dashboard metrics
+        cursor = self.conn.cursor()
+        metrics = {}
+
+        cursor.execute("SELECT COUNT(*) FROM general_data WHERE role='Student'")
+        metrics["Total Students"] = str(cursor.fetchone()[0])
+
+        cursor.execute("SELECT COUNT(*) FROM general_data WHERE role='Teacher'")
+        metrics["Total Teachers"] = str(cursor.fetchone()[0])
+
+        cursor.execute("SELECT COUNT(*) FROM Courses")
+        metrics["Total Courses"] = str(cursor.fetchone()[0])
+
+        cursor.execute("""
+            SELECT AVG(Attendance.status = 'Present') * 100 FROM Attendance
+        """)
+        attendance_rate = cursor.fetchone()[0]
+        metrics["Attendance Rate"] = f"{attendance_rate:.2f}%" if attendance_rate else "N/A"
+
+        return metrics
+
+
+class UserManagementModule(QWidget):
+    def __init__(self, conn):
+        super().__init__()
+        self.conn = conn
+        layout = QVBoxLayout(self)
+
+        # Header
+        header_label = QLabel("User Management")
+        header_label.setFont(QFont("Arial", 20))
+        header_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(header_label)
+
+        # Table Setup
+        self.users_table = QTableWidget()
+        self.users_table.setColumnCount(6)
+        self.users_table.setHorizontalHeaderLabels(["Name", "Email", "Role", "Last Active", "Date Added", "Actions"])
+        self.users_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.users_table.setAlternatingRowColors(True)
+
+        # Apply the same styling as the courses table
+        self.users_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #D5D8DC;
+                gridline-color: #D5D8DC;
+                font-family: 'Artifakt Element Medium';
+            }
+            QTableWidget::item {
+                padding: 10px;
+            }
+            QHeaderView::section {
+                background-color: #ECF0F1;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 5px;
+                border: 1px solid #BDC3C7;
+            }
+            QTableWidget::item:selected {
+                background-color: #D6EAF8;
+            }
+            QTableWidget::item {
+                background-color: #F9F9F9;
+            }
+            QTableWidget::item:alternate {
+                background-color: #002147;
+                color: #F9F9F9;
+            }
+        """)
+
+        layout.addWidget(self.users_table)
+
+        self.populate_users_table()
+
+        # Action Buttons
         self.add_user_button = QPushButton("Add User")
         self.add_user_button.clicked.connect(self.add_user)
+        self.add_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
+        layout.addWidget(self.add_user_button)
 
         self.delete_user_button = QPushButton("Delete User")
         self.delete_user_button.clicked.connect(self.delete_user)
+        self.delete_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
+        layout.addWidget(self.delete_user_button)
 
         self.approve_user_button = QPushButton("Approve User")
         self.approve_user_button.clicked.connect(self.approve_user)
+        self.approve_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
+        layout.addWidget(self.approve_user_button)
 
-        # Add buttons to layout
-        self.layout.addWidget(self.view_profile_button)
-        self.layout.addWidget(self.add_user_button)
-        self.layout.addWidget(self.delete_user_button)
-        self.layout.addWidget(self.approve_user_button)
-        self.setLayout(self.layout)
+    def populate_users_table(self):
+        cursor = self.conn.cursor()
+
+        # Fetch user data from the database (adjust query to match your schema)
+        cursor.execute("SELECT username, email, role, last_active, date_added FROM user_management")
+        rows = cursor.fetchall()
+
+        self.users_table.setRowCount(len(rows))  # Set row count based on the number of users
+
+        for row_idx, row_data in enumerate(rows):
+            # Name and Email
+            name_item = QTableWidgetItem(row_data[0])
+            email_item = QTableWidgetItem(row_data[1])
+
+            # Role with style
+            role_label = QLabel(row_data[2])
+            if row_data[2] == "Admin":
+                role_label.setStyleSheet("color: white; background-color: #1976D2;"
+                                         "padding: 4px 8px; border-radius: 4px;")
+            elif row_data[2] == "Student":
+                role_label.setStyleSheet("color: black; background-color: #C8E6C9;"
+                                         "padding: 4px 8px; border-radius: 4px;")
+            elif row_data[2] == "Teacher":
+                role_label.setStyleSheet("color: white; background-color: #FF8A65;"
+                                         "padding: 4px 8px; border-radius: 4px;")
+            role_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Last Active and Date Added
+            last_active_item = QTableWidgetItem(row_data[3])
+            date_added_item = QTableWidgetItem(row_data[4])
+
+            # Action buttons (e.g., Edit)
+            action_layout = QHBoxLayout()
+            edit_button = QPushButton("Edit")
+            edit_button.setIcon(QIcon.fromTheme("edit"))
+            edit_button.setStyleSheet("color: #4CAF50; padding: 2px;")
+            action_layout.addWidget(edit_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            # Insert values into table cells
+            self.users_table.setItem(row_idx, 0, name_item)
+            self.users_table.setItem(row_idx, 1, email_item)
+            self.users_table.setCellWidget(row_idx, 2, role_label)
+            self.users_table.setItem(row_idx, 3, last_active_item)
+            self.users_table.setItem(row_idx, 4, date_added_item)
+            self.users_table.setCellWidget(row_idx, 5, edit_button)
 
     def add_user(self):
         dialog = AddUserDialog()
-        dialog.exec()
+        if dialog.exec():
+            self.populate_users_table()
 
     def delete_user(self):
         dialog = DeleteUserDialog()
-        dialog.exec()
+        if dialog.exec():
+            self.populate_users_table()
 
     def approve_user(self):
         dialog = ApproveUserDialog()
-        dialog.exec()
+        if dialog.exec():
+            self.populate_users_table()
 
     def view_profiles(self):
+        cursor = self.conn.cursor()
         try:
             cursor.execute("SELECT * FROM general_data")
             users = cursor.fetchall()
@@ -697,7 +958,6 @@ class UserManagementDialog(QDialog):
                 "Age", "Phone Number", "Email", "Username", "Password", "Approved", "Role"
             ])
 
-            # Populate the table and make cells editable
             for i, user in enumerate(users):
                 for j in range(12):
                     item = QTableWidgetItem(str(user[j]))
@@ -705,11 +965,9 @@ class UserManagementDialog(QDialog):
 
             layout.addWidget(table)
 
-            # Add the 'Save Changes' and 'Done' buttons
             save_button = QPushButton("Save Changes")
             done_button = QPushButton("Done")
 
-            # Function to save changes to the database
             def save_changes():
                 try:
                     for i in range(table.rowCount()):
@@ -722,17 +980,16 @@ class UserManagementDialog(QDialog):
                         SET name = ?, matric_no = ?, level = ?, department = ?, age = ?, 
                             phone_number = ?, email = ?, username = ?, password = ?, approved = ?, role = ?
                         WHERE matric_no = ?
-                    """
-                        # Execute the update query using matric_no as the unique identifier
+                        """
                         cursor.execute(update_query, (*updated_values[1:], updated_values[2]))
 
-                    conn.commit()  # Commit changes after all updates
+                    self.conn.commit()
                     QMessageBox.information(self, "Info", "Changes saved successfully.")
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"An error occurred while saving changes: {e}")
 
             save_button.clicked.connect(save_changes)
-            done_button.clicked.connect(dialog.accept)  # Close the dialog without saving
+            done_button.clicked.connect(dialog.accept)
 
             button_layout = QHBoxLayout()
             button_layout.addWidget(save_button)
@@ -920,39 +1177,205 @@ class DeleteUserDialog(QDialog):
             QMessageBox.warning(self, "Error", f"Database error: {e}")
 
 
-# Dialog for Academic Programs and Courses Management
-class ProgramCourseManagementDialog(QDialog):
-    def __init__(self):
+class ProgramCourseManagement(QWidget):
+    def __init__(self, conn):
         super().__init__()
-        self.setWindowTitle("Manage Academic Programs and Courses")
-        self.setGeometry(150, 150, 500, 400)
-        self.layout = QVBoxLayout()
+        self.conn = conn
+        self.init_ui()
 
-        self.add_course_button = QPushButton("Add Course")
-        self.add_course_button.clicked.connect(self.add_course)
+    def init_ui(self):
+        layout = QVBoxLayout(self)
 
-        self.edit_course_button = QPushButton("Edit Course")
-        self.edit_course_button.clicked.connect(self.edit_course)
+        # Header
+        header_label = QLabel("Program and Course Management")
+        header_label.setFont(QFont("Artifakt Element Medium", 20))
+        header_label.setStyleSheet("color: #2C3E50; margin-bottom: 20px;")
+        layout.addWidget(header_label)
 
-        self.delete_course_button = QPushButton("Delete Course")
-        self.delete_course_button.clicked.connect(self.delete_course)
+        # Sorting Options
+        sort_layout = QHBoxLayout()
+        sort_label = QLabel("Sort by:")
+        sort_label.setFont(QFont("Artifakt Element Medium", 12))
+        sort_label.setStyleSheet("margin-right: 10px;")
 
-        # Add buttons to layout
-        self.layout.addWidget(self.add_course_button)
-        self.layout.addWidget(self.edit_course_button)
-        self.layout.addWidget(self.delete_course_button)
-        self.setLayout(self.layout)
+        self.sort_criteria = QComboBox()
+        self.sort_criteria.addItems(["Department", "Level", "Course Unit"])
+        self.sort_order = QComboBox()
+        self.sort_order.addItems(["Ascending", "Descending"])
 
-    def add_course(self):
+        sort_button = QPushButton("Sort")
+        sort_button.setStyleSheet("""
+            QPushButton {
+                background-color: #002147;
+                color: white;
+                font-weight: bold;
+                padding: 5px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #024CA1;
+            }
+        """)
+        sort_button.clicked.connect(self.sort_table)
+
+        sort_layout.addWidget(sort_label)
+        sort_layout.addWidget(self.sort_criteria)
+        sort_layout.addWidget(self.sort_order)
+        sort_layout.addWidget(sort_button)
+
+        layout.addLayout(sort_layout)
+
+        # Courses Table
+        self.courses_table = QTableWidget()
+        self.courses_table.setColumnCount(7)
+        self.courses_table.setHorizontalHeaderLabels([
+            "Course Code", "Course Name", "Course Unit",
+            "Department", "Session", "Semester", "Level"
+        ])
+        self.courses_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.courses_table.setAlternatingRowColors(True)
+        self.courses_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #D5D8DC;
+                gridline-color: #D5D8DC;
+                font-family: 'Artifakt Element Medium';
+            }
+            QTableWidget::item {
+                padding: 10px;
+            }
+            QHeaderView::section {
+                background-color: #ECF0F1;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 5px;
+                border: 1px solid #BDC3C7;
+            }
+            QTableWidget::item:selected {
+                background-color: #D6EAF8;
+            }
+            QTableWidget::item {
+                background-color: #F9F9F9;
+            }
+            QTableWidget::item:alternate {
+                background-color: #002147;
+                color: #F9F9F9;
+            }
+        """)
+        layout.addWidget(self.courses_table)
+
+        self.populate_courses_table()
+
+        # Add course Button
+        add_course_button = QPushButton("Add Course")
+        add_course_button.setStyleSheet("""
+            QPushButton {
+                background-color: #002147; 
+                color: white; 
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #024CA1;
+            }
+        """)
+        add_course_button.clicked.connect(self.open_add_course_dialog)
+        layout.addWidget(add_course_button)
+
+        # Save Changes Button
+        save_button = QPushButton("Save Changes")
+        save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #002147; 
+                color: white; 
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #024CA1;
+            }
+        """)
+        save_button.clicked.connect(self.save_changes)
+        layout.addWidget(save_button)
+
+        self.setLayout(layout)
+
+    def populate_courses_table(self):
+        """Populate the table with data from the database."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT course_code, course_name, course_unit, department, session, semester, level FROM Courses")
+        rows = cursor.fetchall()
+
+        self.courses_table.setRowCount(len(rows))
+        for row_idx, row_data in enumerate(rows):
+            for col_idx, value in enumerate(row_data):
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsEditable)
+                self.courses_table.setItem(row_idx, col_idx, item)
+
+    def sort_table(self):
+        """Sort the table based on selected criteria and order."""
+        criteria = self.sort_criteria.currentText()
+        order = self.sort_order.currentText()
+
+        # Mapping column index based on criteria
+        column_mapping = {"Department": 3, "Level": 6, "Course Unit": 2}
+        column_index = column_mapping[criteria]
+
+        # Get all rows and their data
+        rows = []
+        for row in range(self.courses_table.rowCount()):
+            row_data = [
+                self.courses_table.item(row, col).text()
+                for col in range(self.courses_table.columnCount())
+            ]
+            rows.append(row_data)
+
+        # Sort rows based on selected criteria and order
+        rows.sort(key=lambda x: x[column_index], reverse=(order == "Descending"))
+
+        # Re-populate the table with sorted data
+        self.courses_table.setRowCount(len(rows))
+        for row_idx, row_data in enumerate(rows):
+            for col_idx, value in enumerate(row_data):
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsEditable)
+                self.courses_table.setItem(row_idx, col_idx, item)
+
+    def save_changes(self):
+        """Save changes from the table to the database."""
+        try:
+            cursor = self.conn.cursor()
+            for row in range(self.courses_table.rowCount()):
+                updated_values = []
+                for col in range(self.courses_table.columnCount()):
+                    updated_values.append(self.courses_table.item(row, col).text())
+
+                update_query = """
+                    UPDATE Courses
+                    SET course_name = ?, course_unit = ?, department = ?, session = ?, semester = ?, level = ?
+                    WHERE course_code = ?
+                """
+                # Reorder the updated values to match the query
+                cursor.execute(update_query, (*updated_values[1:], updated_values[0]))
+
+            self.conn.commit()
+            QMessageBox.information(self, "Info", "Changes saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while saving changes: {e}")
+
+    def open_add_course_dialog(self):
+        # Open the AddCourseDialog
         dialog = AddCourseDialog()
-        dialog.exec()
-
-    def edit_course(self):
-        dialog = EditCourseDialog()
-        dialog.exec()
-
-    def delete_course(self):
-        dialog = DeleteCourseDialog()
         dialog.exec()
 
 
@@ -1098,92 +1521,213 @@ class AddCourseDialog(QDialog):
             self.conn.close()
 
 
-# Dialog for editing a course
-class EditCourseDialog(QDialog):
+class AttendanceAnalytics(QWidget):
+    def __init__(self, conn):
+        super().__init__()
+        self.conn = conn
+        layout = QVBoxLayout(self)
+
+        # Header
+        header = QLabel("Attendance Analytics")
+        header.setFont(QFont("Artifakt Element Medium", 20))
+        layout.addWidget(header)
+
+        # Attendance Table
+        self.attendance_table = QTableWidget()
+        self.attendance_table.setColumnCount(6)
+        self.attendance_table.setHorizontalHeaderLabels([
+            "Matric No.", "Course", "Level", "Department", "Date", "Status"
+        ])
+        layout.addWidget(self.attendance_table)
+
+        self.populate_attendance_table()
+
+    def populate_attendance_table(self):
+        cursor = self.conn.cursor()
+
+        # Query to retrieve attendance data with course name, level, and department
+        query = """
+        SELECT 
+            Attendance.matric_no, 
+            Courses.course_name, 
+            general_data.level, 
+            general_data.department, 
+            Attendance.date, 
+            Attendance.status
+        FROM Attendance
+        INNER JOIN general_data ON Attendance.matric_no = general_data.matric_no
+        INNER JOIN Courses ON Attendance.course_code = Courses.course_code
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        self.attendance_table.setRowCount(len(rows))
+        for row_idx, row_data in enumerate(rows):
+            for col_idx, value in enumerate(row_data):
+                self.attendance_table.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
+
+
+class Analytics(QWidget):
+    def __init__(self, conn):
+        super().__init__()
+        self.conn = conn
+        layout = QVBoxLayout(self)
+
+        # Header
+        header = QLabel("Analytics Overview")
+        header.setFont(QFont("Artifakt Element Medium", 20))
+        layout.addWidget(header)
+
+        # Subheader
+        subheader = QLabel("Key Metrics and Visualizations")
+        subheader.setFont(QFont("Arial", 14))
+        layout.addWidget(subheader)
+
+        # Metrics Grid
+        metrics_grid = QGridLayout()
+        layout.addLayout(metrics_grid)
+
+        metrics = self.get_analytics_metrics()
+        for i, (metric_name, value) in enumerate(metrics.items()):
+            group = QGroupBox(metric_name)
+            group_layout = QVBoxLayout(group)
+            value_label = QLabel(value)
+            value_label.setFont(QFont("Arial", 12))
+            value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            group_layout.addWidget(value_label)
+            metrics_grid.addWidget(group, i // 2, i % 2)
+
+        # Visualization area
+        visualizations_group = QGroupBox("Performance Overview")
+        visualizations_layout = QVBoxLayout(visualizations_group)
+
+        # Attendance Rate Chart
+        attendance_chart = self.create_attendance_chart()
+        visualizations_layout.addWidget(attendance_chart)
+
+        # Grades Distribution Chart
+        grades_chart_pie, grades_chart_bar = self.create_grades_chart()  # Unpack the tuple
+
+        # Add each chart to the visualizations layout
+        visualizations_layout.addWidget(grades_chart_pie)  # Add the Matplotlib pie chart
+        visualizations_layout.addWidget(grades_chart_bar)  # Add the PyQtGraph bar chart
+
+        layout.addWidget(visualizations_group)  # Add the visualization group to the main layout
+
+    def get_analytics_metrics(self):
+        cursor = self.conn.cursor()
+        metrics = {}
+
+        cursor.execute("SELECT COUNT(*) FROM general_data WHERE role='Student'")
+        metrics["Total Students"] = str(cursor.fetchone()[0])
+
+        cursor.execute("SELECT COUNT(*) FROM general_data WHERE role='Teacher'")
+        metrics["Total Teachers"] = str(cursor.fetchone()[0])
+
+        cursor.execute("SELECT COUNT(*) FROM Courses")
+        metrics["Total Courses"] = str(cursor.fetchone()[0])
+
+        cursor.execute("""
+            SELECT AVG(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) * 100 FROM Attendance
+        """)
+        attendance_rate = cursor.fetchone()[0]
+        metrics["Attendance Rate"] = f"{attendance_rate:.2f}%" if attendance_rate else "N/A"
+
+        return metrics
+
+    def create_attendance_chart(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT date, 
+                   COUNT(CASE WHEN status = 'Present' THEN 1 END) AS present_count,
+                   COUNT(CASE WHEN status = 'Absent' THEN 1 END) AS absent_count
+            FROM Attendance
+            GROUP BY date
+        """)
+        data = cursor.fetchall()
+        dates, present, absent = zip(*data) if data else ([], [], [])
+
+        # Create a matplotlib chart
+        figure = Figure(figsize=(6, 3))
+        canvas = FigureCanvasQTAgg(figure)
+        ax = figure.add_subplot(111)
+        ax.plot(dates, present, label="Present", marker="o")
+        ax.plot(dates, absent, label="Absent", marker="x", linestyle="--")
+        ax.set_title("Attendance Trend")
+        ax.set_xlabel("Dates")
+        ax.set_ylabel("Count")
+        ax.legend()
+        ax.grid(True)
+
+        return canvas
+
+    def create_grades_chart(self):
+        # Query the database to count the number of students per grade
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT grade, COUNT(*)
+            FROM student_grades
+            GROUP BY grade
+        """)
+        data = cursor.fetchall()
+
+        # Extract grades and counts
+        grades, counts = zip(*data) if data else ([], [])
+
+        # Matplotlib: Pie Chart for Grade Distribution
+        pie_figure = Figure(figsize=(6, 3))  # Figure for pie chart
+        pie_canvas = FigureCanvasQTAgg(pie_figure)
+        pie_ax = pie_figure.add_subplot(111)
+        pie_ax.pie(
+            counts,
+            labels=grades,
+            autopct="%1.1f%%",
+            startangle=90,
+            colors=["#4CAF50", "#2196F3", "#FFC107", "#FF5722", "#E91E63", "#9C27B0"]
+        )
+        pie_ax.set_title("Grades Distribution (Pie Chart)")
+
+        # PyQtGraph: Bar Chart for Grade Distribution
+        bar_widget = PlotWidget(title="Grades Distribution (Bar Chart)")
+        bar_widget.setBackground("w")
+        bar_widget.setLabel("bottom", "Grades")
+        bar_widget.setLabel("left", "Number of Students")
+        bar_widget.showGrid(x=True, y=True, alpha=0.3)
+
+        # Generate bar chart data
+        x = list(range(len(grades)))  # X-axis positions
+        bar_item = BarGraphItem(
+            x=x,
+            height=counts,
+            width=0.5,
+            brush="#2196F3"  # Bar color
+        )
+        bar_widget.addItem(bar_item)
+
+        # Set X-axis ticks to grade labels
+        bar_widget.getPlotItem().getAxis("bottom").setTicks([list(zip(x, grades))])
+
+        return pie_canvas, bar_widget
+
+
+class Notifications(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Edit Course")
-        self.setGeometry(200, 200, 400, 300)
-        layout = QFormLayout()
+        layout = QVBoxLayout(self)
 
-        self.course_code_input = QLineEdit()
-        self.new_course_name_input = QLineEdit()
-        self.new_course_code_input = QLineEdit()
+        # Header
+        header = QLabel("Notifications")
+        header.setFont(QFont("Arial", 20))
+        layout.addWidget(header)
 
-        layout.addRow("Course Code to Edit:", self.course_code_input)
-        layout.addRow("New Course Name:", self.new_course_name_input)
-        layout.addRow("New Course Code:", self.new_course_code_input)
-
-        self.edit_button = QPushButton("Edit Course")
-        self.edit_button.clicked.connect(self.edit_course_in_db)
-        layout.addRow(self.edit_button)
-        self.setLayout(layout)
-
-    def edit_course_in_db(self):
-        course_code = self.course_code_input.text()
-        new_course_name = self.new_course_name_input.text()
-        new_course_code = self.new_course_code_input.text()
-
-        if not course_code:
-            QMessageBox.warning(self, "Error", "Course code is required.")
-            return
-
-        try:
-            cursor.execute("SELECT * FROM courses WHERE course_code = ?", (course_code,))
-            course = cursor.fetchone()
-            if not course:
-                QMessageBox.warning(self, "Error", "Course not found.")
-                return
-
-            cursor.execute(
-                "UPDATE courses SET course_name = ?, course_code = ? WHERE course_code = ?",
-                (new_course_name or course[1], new_course_code or course[2], course_code)
-            )
-            conn.commit()
-            QMessageBox.information(self, "Success", "Course edited successfully.")
-            self.accept()
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, "Error", f"Database error: {e}")
-
-
-# Dialog for deleting a course
-class DeleteCourseDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Delete Course")
-        self.setGeometry(200, 200, 400, 200)
-        layout = QFormLayout()
-
-        self.course_code_input = QLineEdit()
-        layout.addRow("Course Code to Delete:", self.course_code_input)
-
-        self.delete_button = QPushButton("Delete Course")
-        self.delete_button.clicked.connect(self.delete_course_from_db)
-        layout.addRow(self.delete_button)
-        self.setLayout(layout)
-
-    def delete_course_from_db(self):
-        course_code = self.course_code_input.text()
-        if not course_code:
-            QMessageBox.warning(self, "Error", "Course code is required.")
-            return
-
-        try:
-            cursor.execute("DELETE FROM courses WHERE course_code = ?", (course_code,))
-            conn.commit()
-            if cursor.rowcount == 0:
-                QMessageBox.warning(self, "Error", "Course not found.")
-            else:
-                QMessageBox.information(self, "Success", "Course deleted successfully.")
-                self.accept()
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, "Error", f"Database error: {e}")
+        # Example placeholder
+        layout.addWidget(QLabel("No new notifications."))
 
 
 class StudentDashboard(QDialog):
     def __init__(self, student_data):
         super().__init__()
-        self.setWindowTitle("Student Dashboard")
+        self.setWindowTitle(f"{student_data['name']} - Teacher Dashboard")
         self.setGeometry(200, 200, 500, 400)
 
         layout = QVBoxLayout()
@@ -1225,25 +1769,33 @@ class StudentDashboard(QDialog):
         self.setLayout(layout)
 
     def register_courses(self):
-        # Placeholder action for course registration
-        self.new_window = RegisterCoursesPage()
+        """
+        Opens the Register Courses dialog window.
+        """
+        self.new_window = RegisterCoursesPage()  # Instantiate RegisterCoursesPage
         self.new_window.setModal(True)  # Makes the dialog modal
         self.new_window.exec()  # Opens the dialog modally
 
     def register_hostel(self):
-        # Placeholder action for hostel registration
-        self.new_window = HostelRegistrationPage()
+        """
+        Opens the Hostel Registration dialog window.
+        """
+        self.new_window = HostelRegistrationPage()  # Instantiate HostelRegistrationPage
         self.new_window.setModal(True)  # Makes the dialog modal
         self.new_window.exec()  # Opens the dialog modally
 
-
     def print_result(self):
-        # Placeholder action for printing results
+        """
+        Displays a placeholder message for printing results.
+        """
         QMessageBox.information(self, "Print Result", "Result printing window opened.")
 
     def request_id_card(self):
-        # Placeholder action for ID card request
+        """
+        Displays a placeholder message for ID card requests.
+        """
         QMessageBox.information(self, "ID Card Request", "ID Card request form opened.")
+
 
 class RegisterCoursesPage(QDialog):
     def __init__(self):
@@ -1312,14 +1864,17 @@ class RegisterCoursesPage(QDialog):
             level_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
 
             self.level_dropdown = QComboBox()
-            self.level_dropdown.addItems(["-- Select Level --", "100 Level", "200 Level", "300 Level", "400 Level","500 Level"])
+            self.level_dropdown.addItems(
+                ["-- Select Level --", "100 Level", "200 Level", "300 Level", "400 Level", "500 Level"])
 
             # Department Dropdown
             department_label = QLabel("SELECT DEPARTMENT:")
             department_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
 
             self.department_dropdown = QComboBox()
-            self.department_dropdown.addItems(["-- Select Department --", "Computer Science", "Electrical Engineering", "Mechanical Engineering", "Civil Engineering", "Mechatronic Engineering "])
+            self.department_dropdown.addItems(
+                ["-- Select Department --", "Computer Science", "Electrical Engineering", "Mechanical Engineering",
+                 "Civil Engineering", "Mechatronic Engineering "])
 
             # Save Button
             save_button = QPushButton("Proceed")
@@ -1353,7 +1908,6 @@ class RegisterCoursesPage(QDialog):
                 child.widget().deleteLater()
 
 
-
 class HostelRegistrationPage(QDialog):
     def __init__(self):
         super().__init__()
@@ -1364,7 +1918,7 @@ class HostelRegistrationPage(QDialog):
 
         # Main Layout
         main_layout = QVBoxLayout()
-        
+
         # Section 1: Title
         title_label = QLabel("Please choose your Hostel below:")
         title_label.setFont(QFont("Arial", 12))
@@ -1421,84 +1975,196 @@ class HostelRegistrationPage(QDialog):
 
         # Set the main layout
         self.setLayout(main_layout)
+
+
 class TeacherDashboard(QDialog):
     def __init__(self, teacher_data):
         super().__init__()
+        self.teacher_data = teacher_data  # Store teacher data
         self.setWindowTitle("Teacher Dashboard")
-        self.setGeometry(200, 200, 800, 600)
+        self.setGeometry(100, 100, 1200, 800)
+        self.init_ui()
 
-        # Teacher data
-        self.teacher_data = teacher_data
+    def init_ui(self):
+        # Main Layout
+        main_layout = QHBoxLayout(self)
 
-        # Main layout
-        main_layout = QVBoxLayout(self)
+        # Left Navigation Menu
+        nav_menu = QVBoxLayout()
 
-        # Tabs
-        self.tabs = QTabWidget()
-        main_layout.addWidget(self.tabs)
+        # Display Teacher Information Dynamically
+        name = QLabel(f"{self.teacher_data['name']}")
+        department = QLabel(f"{self.teacher_data['department']}")
 
-        # Teacher Info Tab
-        self.teacher_info_tab = QWidget()
-        self.tabs.addTab(self.teacher_info_tab, "Teacher Info")
-        self.setup_teacher_info_tab()
+        # Customize font size and styling individually
+        name.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        name.setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 2px;")  # Larger font size for the name
 
-        # View Courses Tab
-        self.courses_tab = QWidget()
-        self.tabs.addTab(self.courses_tab, "Courses")
-        self.setup_courses_tab()
+        department.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        department.setStyleSheet("font-size: 12px; font-weight: normal; margin-bottom: 5px;")  # Smaller font size for the department
 
-    def setup_teacher_info_tab(self):
-        layout = QVBoxLayout(self.teacher_info_tab)
+        # Add the labels to the navigation menu
+        nav_menu.addWidget(name)
+        nav_menu.addWidget(department)
 
-        # Display teacher information
-        name_label = QLabel(f"Name: {self.teacher_data['name']}")
-        username_label = QLabel(f"Username: {self.teacher_data['username']}")
-        department_label = QLabel(f"Department: {self.teacher_data['department']}")
-        phone_label = QLabel(f"Phone Number: {self.teacher_data['phone_number']}")
 
-        # Add teacher info labels to the layout
-        layout.addWidget(name_label)
-        layout.addWidget(username_label)
-        layout.addWidget(department_label)
-        layout.addWidget(phone_label)
+        # Add Navigation Buttons
+        self.pages = QStackedWidget()  # Stacked widget to hold all pages
+        buttons = [
+            ("Home", self.create_home_page),
+            ("Messages", self.create_messages_page),
+            ("Schedule", self.create_schedule_page),
+            ("Online Course", self.create_online_course_page),
+            ("Assignment", self.create_assignment_page),
+            ("Discussion", self.create_discussion_page),
+            ("Announcement", self.create_announcement_page),
+            ("Settings", self.create_settings_page),
+        ]
 
-    def setup_courses_tab(self):
-        layout = QVBoxLayout(self.courses_tab)
+        for btn_text, page_creator in buttons:
+            btn = QPushButton(btn_text)
+            btn.setStyleSheet("padding: 10px; text-align: left;")
+            btn.clicked.connect(page_creator)
+            nav_menu.addWidget(btn)
 
-        # View Courses Button
-        self.view_courses_button = QPushButton("View Courses")
-        self.view_courses_button.clicked.connect(self.view_courses)
-        layout.addWidget(self.view_courses_button)
+        # Logout Button
+        logout_btn = QPushButton("Logout")
+        logout_btn.setStyleSheet("padding: 10px; text-align: left;")
+        logout_btn.clicked.connect(self.logout)
+        nav_menu.addWidget(logout_btn)
 
-        # Placeholder for courses table
-        self.courses_table = QTableWidget()
-        self.courses_table.setColumnCount(17)  # Assuming 15 courses + department + level
-        self.courses_table.setHorizontalHeaderLabels(["Department", "Level"] + [f"Course {i + 1}" for i in range(15)])
-        layout.addWidget(self.courses_table)
+        nav_menu.addStretch()
 
-    def view_courses(self):
-        try:
-            # Query to retrieve all courses
-            query = "SELECT department, level, course1, course2, course3, course4, course5, course6, course7, course8, course9, course10, course11, course12, course13, course14, course15 FROM Courses"
-            cursor.execute(query)
-            courses = cursor.fetchall()
+        # Add Left Navigation and Content to Main Layout
+        main_layout.addLayout(nav_menu, 1)
+        main_layout.addWidget(self.pages, 4)
 
-            # Check if courses are available
-            if not courses:
-                QMessageBox.information(self, "Info", "No courses available.")
-                return
+        # Initialize the first page
+        self.create_home_page()
 
-            # Populate the table with the course data
-            self.courses_table.setRowCount(len(courses))
-            for row_index, row_data in enumerate(courses):
-                for column_index, data in enumerate(row_data):
-                    item = QTableWidgetItem(str(data) if data is not None else "")
-                    self.courses_table.setItem(row_index, column_index, item)
+    def create_home_page(self):
+        """Create the Home Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
 
-        except sqlite3.Error as e:
-            QMessageBox.critical(self, "Database Error", f"An error occurred: {e}")
-            if conn:
-                conn.close()
+        label = QLabel("Welcome to the Home Page!")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        layout.addWidget(label)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_messages_page(self):
+        """Create the Messages Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Messages Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        messages_list = QListWidget()
+        messages_list.addItems([
+            "Mark: Sorry, I can't attend...",
+            "James: Hello sir, I need help...",
+            "Toby: Haha sorry can't learn...",
+        ])
+
+        layout.addWidget(label)
+        layout.addWidget(messages_list)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_schedule_page(self):
+        """Create the Schedule Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Schedule Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        calendar = QCalendarWidget()
+        calendar.setGridVisible(True)
+
+        layout.addWidget(label)
+        layout.addWidget(calendar)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_online_course_page(self):
+        """Create the Online Course Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Online Course Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        layout.addWidget(label)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_assignment_page(self):
+        """Create the Assignment Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Assignment Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        progress = QProgressBar()
+        progress.setValue(60)
+
+        layout.addWidget(label)
+        layout.addWidget(progress)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_discussion_page(self):
+        """Create the Discussion Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Discussion Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        layout.addWidget(label)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_announcement_page(self):
+        """Create the Announcement Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Announcement Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        layout.addWidget(label)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def create_settings_page(self):
+        """Create the Settings Page."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        label = QLabel("Settings Page")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        layout.addWidget(label)
+        self.pages.addWidget(page)
+        self.pages.setCurrentWidget(page)
+
+    def logout(self):
+        """Logout Functionality."""
+        self.close()
 
 
 class MainWindow(QMainWindow):

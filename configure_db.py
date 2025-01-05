@@ -39,52 +39,6 @@ CREATE TABLE IF NOT EXISTS user_management (
 )
 ''')
 
-
-# Create the 'student_grading' table
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS student_grading (
-    grading_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    semester_id INTEGER NOT NULL,
-    matric_no TEXT UNIQUE NOT NULL,
-    course_code TEXT NOT NULL,
-    assignment_score REAL,
-    exam_scores REAL CHECK (exam_scores >= 0 AND exam_scores <= 100),
-    test_scores REAL CHECK (test_scores >= 0 AND test_scores <= 100),
-    grade TEXT CHECK (grade IN ('A', 'B', 'C', 'D', 'E', 'F')),
-    FOREIGN KEY (matric_no) REFERENCES general_data (matric_no)
-)
-''')
-
-# Create the 'student_cgpa' table
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS student_cgpa (
-    matric_no TEXT,
-    cgpa REAL,
-    FOREIGN KEY (matric_no) REFERENCES general_data (matric_no)
-)
-''')
-
-# Create the Students table
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Students (
-        student_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        matric_no TEXT NOT NULL UNIQUE,
-        student_name TEXT
-    )
-''')
-
-# Create the Student_Courses junction table
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Student_Courses (
-        student_id INTEGER,
-        course_id INTEGER,
-        registration_date DATE DEFAULT CURRENT_DATE,
-        PRIMARY KEY (student_id, course_id),
-        FOREIGN KEY (student_id) REFERENCES Students(student_id),
-        FOREIGN KEY (course_id) REFERENCES Courses(course_id)
-    )
-''')
-
 # Courses table
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS Courses (
@@ -98,6 +52,25 @@ cursor.execute('''
         course_unit INTEGER NOT NULL
     )
 ''')
+
+# Create the student_grades table
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS student_grades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        matric_no TEXT UNIQUE NOT NULL,
+        course_code TEXT NOT NULL,
+        test REAL CHECK (test >= 0.0 AND test <= 30.0),
+        assignment REAL CHECK (assignment >= 0.0 AND assignment <= 30.0),
+        exam REAL CHECK (exam >= 0.0 AND exam <= 70.0),
+        grade TEXT CHECK (grade IN ('A', 'B', 'C', 'D', 'E', 'F')),
+        FOREIGN KEY (course_code) REFERENCES Courses (course_code)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (matric_no) REFERENCES general_data (matric_no)
+        UNIQUE (matric_no, exam)  -- Enforce one exam entry per course code
+    )
+''')
+
 
 # Attendance table
 cursor.execute('''
