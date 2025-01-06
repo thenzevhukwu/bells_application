@@ -26,17 +26,17 @@ CREATE TABLE IF NOT EXISTS general_data (
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS user_management (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username INTEGER NOT NULL,  -- Foreign key to link with 'general_data'
+    username TEXT NOT NULL,  -- Foreign key to link with 'general_data'
     email TEXT UNIQUE NOT NULL,
     phone_number TEXT,
     last_active TEXT,
     date_added TEXT,
     role TEXT,
-    FOREIGN KEY (username) REFERENCES general_data (username) ON DELETE CASCADE
-    FOREIGN KEY (phone_number) REFERENCES general_data (phone_number) ON DELETE CASCADE
-    FOREIGN KEY (email) REFERENCES general_data (email) ON DELETE CASCADE
+    FOREIGN KEY (username) REFERENCES general_data (username) ON DELETE CASCADE,
+    FOREIGN KEY (phone_number) REFERENCES general_data (phone_number) ON DELETE CASCADE,
+    FOREIGN KEY (email) REFERENCES general_data (email) ON DELETE CASCADE,
     FOREIGN KEY (role) REFERENCES general_data (role) ON DELETE CASCADE
-)
+);
 ''')
 
 # Courses table

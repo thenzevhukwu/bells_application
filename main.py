@@ -46,19 +46,18 @@ def update_user_management():
             record = cursor.fetchone()
 
             if record:
-                # Update the existing record
+                # Update the existing record (removed last_active)
                 cursor.execute('''
                 UPDATE user_management
-                SET email = ?, phone_number = ?, role = ?, last_active = ?
+                SET email = ?, phone_number = ?, role = ?
                 WHERE username = ?
-                ''', (email, phone_number, role, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username))
+                ''', (email, phone_number, role, username))
             else:
-                # Insert a new record into the table
+                # Insert a new record into the table (removed last_active)
                 cursor.execute('''
-                INSERT INTO user_management (username, email, phone_number, role, date_added, last_active)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ''', (username, email, phone_number, role, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                      datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                INSERT INTO user_management (username, email, phone_number, role, date_added)
+                VALUES (?, ?, ?, ?, ?)
+                ''', (username, email, phone_number, role, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         # Commit changes to the database
         conn.commit()
@@ -390,10 +389,13 @@ class LoginWindow(QWidget):
                 self.open_admin_panel()
             elif user[11] == 'Teacher':
                 teacher_data = {
-                    'name': user[1],  # Assuming user[0] is the name
                     'username': user[8],  # Assuming user[7] is the username
+                    'name': user[1],  # Assuming user[0] is the name
+                    'matric_no': user[2],   # Assuming user[2] is the matric number
                     'department': user[4],  # Assuming user[3] is the department
+                    'age': user[5],  # Assuming user[5] is the age
                     'phone_number': user[6],  # Assuming user[5] is the phone number
+                    'email': user[7],  # Assuming user[7] is the email
                 }
                 self.open_teacher_dashboard(teacher_data)
             else:
@@ -402,7 +404,9 @@ class LoginWindow(QWidget):
                     'matric_no': user[2],  # Assuming user[1] is the matric number
                     'level': user[3],  # Assuming user[2] is the level
                     'department': user[4],  # Assuming user[3] is the department
+                    'age': user[5],  # Assuming user[5] is the age
                     'phone_number': user[6],  # Assuming user[5] is the phone number
+                    'email': user[7],  # Assuming user[7] is the email
                 }
                 self.open_student_dashboard(student_data)
         else:
@@ -586,6 +590,10 @@ class CreateAccountDialog(QDialog):
         self.phone_number = QLineEdit(self)
         form_layout.addRow("Phone number:", self.phone_number)
 
+        # Add Email
+        self.email = QLineEdit(self)
+        form_layout.addRow("Email:", self.email)
+
         # Username input
         self.username_input = QLineEdit(self)
         form_layout.addRow("Username:", self.username_input)
@@ -611,18 +619,19 @@ class CreateAccountDialog(QDialog):
     def save_to_database(self):
         # Collect input data
         name = self.name_input.text()
-        matric_number = self.matric_input.text()
-        department = self.department_input.text()
+        matric_no = self.matric_input.text()
         level = self.level_input.text()
+        department = self.department_input.text()
         age = self.age_input.text()  # Example fixed age value
         phone_number = self.phone_number.text()  # Example fixed phone number
+        email = self.email.text()
         username = self.username_input.text()
         password = self.password_input.text()
         approved = False  # Example approval status
         role = self.role_input.currentText()
 
         # Validation
-        if not all([name, matric_number, department, level, role]):
+        if not all([name, matric_no, department, level, role]):
             QMessageBox.warning(self, "Input Error", "All fields are required.")
             return
 
@@ -630,9 +639,9 @@ class CreateAccountDialog(QDialog):
 
         try:
             cursor.execute('''
-                INSERT INTO general_data (name, matric_no, level, department, age, phone_number, username, password, approved, role)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (name, matric_number, level, department, age, phone_number, username, hashed_password, approved, role))
+            INSERT INTO general_data (name, matric_no, level, department, age, phone_number, email, username, password, approved, role)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, matric_no, level, department, age, phone_number, email, username, hashed_password, approved, role))
             conn.commit()
             QMessageBox.information(self, "Success", "Wait for Account Approval")
             self.accept()
@@ -759,25 +768,33 @@ class DashboardAnalytics(QWidget):
     def __init__(self, conn):
         super().__init__()
         self.conn = conn
-        layout = QVBoxLayout(self)
+
+        # Create a QFormLayout
+        form_layout = QFormLayout()
+
+        # Reduce spacing between rows
+        form_layout.setHorizontalSpacing(10)
+        form_layout.setVerticalSpacing(5)
 
         # Header
         header = QLabel("Dashboard Overview")
-        header.setFont(QFont("Artifakt Element Medium", 20))
-        layout.addWidget(header)
+        header.setFont(QFont("Artifakt Element", 20, QFont.Weight.Bold))
+        header.setStyleSheet("margin: 5px 0px;")  # Reduce top and bottom margin
+        form_layout.addRow(header)  # Add the header as the first row
 
-        # Analytics Grid
-        grid = QGridLayout()
-        layout.addLayout(grid)
-
+        # Add metrics to the form
         metrics = self.get_dashboard_metrics()
-        for i, (metric_name, value) in enumerate(metrics.items()):
-            group = QGroupBox(metric_name)
-            group_layout = QVBoxLayout(group)
+        for metric_name, value in metrics.items():
+            metric_label = QLabel(metric_name)
+            metric_label.setFont(QFont("Artifakt Element", 12))
+
             value_label = QLabel(value)
-            value_label.setFont(QFont("Arial", 12))
-            group_layout.addWidget(value_label)
-            grid.addWidget(group, i // 2, i % 2)
+            value_label.setFont(QFont("Artifakt Element", 12))
+
+            form_layout.addRow(metric_label, value_label)
+
+        # Set the layout for the widget
+        self.setLayout(form_layout)
 
     def get_dashboard_metrics(self):
         # Fetch data for dashboard metrics
@@ -802,6 +819,7 @@ class DashboardAnalytics(QWidget):
         return metrics
 
 
+
 class UserManagementModule(QWidget):
     def __init__(self, conn):
         super().__init__()
@@ -810,9 +828,36 @@ class UserManagementModule(QWidget):
 
         # Header
         header_label = QLabel("User Management")
-        header_label.setFont(QFont("Arial", 20))
+        header_label.setFont(QFont("Artifakt Element", 20))
+        header_label.setStyleSheet("margin: 10px;")
         header_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(header_label)
+
+        # Horizontal Button Bar
+        button_bar = QHBoxLayout()
+
+        self.add_user_button = QPushButton("Add User")
+        self.add_user_button.clicked.connect(self.add_user)
+        self.add_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 6px 12px; border-radius: 4px;"
+        )
+        button_bar.addWidget(self.add_user_button)
+
+        self.delete_user_button = QPushButton("Delete User")
+        self.delete_user_button.clicked.connect(self.delete_user)
+        self.delete_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 6px 12px; border-radius: 4px;"
+        )
+        button_bar.addWidget(self.delete_user_button)
+
+        self.approve_user_button = QPushButton("Approve User")
+        self.approve_user_button.clicked.connect(self.approve_user)
+        self.approve_user_button.setStyleSheet(
+            "color: white; background-color: #002147; padding: 6px 12px; border-radius: 4px;"
+        )
+        button_bar.addWidget(self.approve_user_button)
+
+        layout.addLayout(button_bar)
 
         # Table Setup
         self.users_table = QTableWidget()
@@ -854,35 +899,17 @@ class UserManagementModule(QWidget):
 
         self.populate_users_table()
 
-        # Action Buttons
-        self.add_user_button = QPushButton("Add User")
-        self.add_user_button.clicked.connect(self.add_user)
-        self.add_user_button.setStyleSheet(
-            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
-        layout.addWidget(self.add_user_button)
-
-        self.delete_user_button = QPushButton("Delete User")
-        self.delete_user_button.clicked.connect(self.delete_user)
-        self.delete_user_button.setStyleSheet(
-            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
-        layout.addWidget(self.delete_user_button)
-
-        self.approve_user_button = QPushButton("Approve User")
-        self.approve_user_button.clicked.connect(self.approve_user)
-        self.approve_user_button.setStyleSheet(
-            "color: white; background-color: #002147; padding: 4px 8px; border-radius: 4px;")
-        layout.addWidget(self.approve_user_button)
-
     def populate_users_table(self):
         cursor = self.conn.cursor()
 
-        # Fetch user data from the database (adjust query to match your schema)
+        # Fetch user data from the database
         cursor.execute("SELECT username, email, role, last_active, date_added FROM user_management")
         rows = cursor.fetchall()
 
         self.users_table.setRowCount(len(rows))  # Set row count based on the number of users
 
         for row_idx, row_data in enumerate(rows):
+            self.users_table.setRowHeight(row_idx, 40)
             # Name and Email
             name_item = QTableWidgetItem(row_data[0])
             email_item = QTableWidgetItem(row_data[1])
@@ -901,7 +928,7 @@ class UserManagementModule(QWidget):
             role_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             # Last Active and Date Added
-            last_active_item = QTableWidgetItem(row_data[3])
+            last_active_item = QTableWidgetItem(row_data[3] or "Never")
             date_added_item = QTableWidgetItem(row_data[4])
 
             # Action buttons (e.g., Edit)
@@ -909,6 +936,7 @@ class UserManagementModule(QWidget):
             edit_button = QPushButton("Edit")
             edit_button.setIcon(QIcon.fromTheme("edit"))
             edit_button.setStyleSheet("color: #4CAF50; padding: 2px;")
+            edit_button.clicked.connect(lambda _, username=row_data[0]: self.update_last_active(username))
             action_layout.addWidget(edit_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
             # Insert values into table cells
@@ -934,76 +962,7 @@ class UserManagementModule(QWidget):
         if dialog.exec():
             self.populate_users_table()
 
-    def view_profiles(self):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("SELECT * FROM general_data")
-            users = cursor.fetchall()
 
-            if not users:
-                QMessageBox.information(self, "Info", "No users found.")
-                return
-
-            dialog = QDialog(self)
-            dialog.setWindowTitle("User Profiles")
-            dialog.setGeometry(150, 150, 1200, 720)
-
-            layout = QVBoxLayout()
-
-            table = QTableWidget()
-            table.setRowCount(len(users))
-            table.setColumnCount(12)
-            table.setHorizontalHeaderLabels([
-                "ID", "Name", "Matric Number", "Level", "Department",
-                "Age", "Phone Number", "Email", "Username", "Password", "Approved", "Role"
-            ])
-
-            for i, user in enumerate(users):
-                for j in range(12):
-                    item = QTableWidgetItem(str(user[j]))
-                    table.setItem(i, j, item)
-
-            layout.addWidget(table)
-
-            save_button = QPushButton("Save Changes")
-            done_button = QPushButton("Done")
-
-            def save_changes():
-                try:
-                    for i in range(table.rowCount()):
-                        updated_values = []
-                        for j in range(table.columnCount()):
-                            updated_values.append(table.item(i, j).text())
-
-                        update_query = """
-                        UPDATE general_data 
-                        SET name = ?, matric_no = ?, level = ?, department = ?, age = ?, 
-                            phone_number = ?, email = ?, username = ?, password = ?, approved = ?, role = ?
-                        WHERE matric_no = ?
-                        """
-                        cursor.execute(update_query, (*updated_values[1:], updated_values[2]))
-
-                    self.conn.commit()
-                    QMessageBox.information(self, "Info", "Changes saved successfully.")
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"An error occurred while saving changes: {e}")
-
-            save_button.clicked.connect(save_changes)
-            done_button.clicked.connect(dialog.accept)
-
-            button_layout = QHBoxLayout()
-            button_layout.addWidget(save_button)
-            button_layout.addWidget(done_button)
-            layout.addLayout(button_layout)
-
-            dialog.setLayout(layout)
-            dialog.exec()
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred: {e}")
-
-
-# Dialog for approving a user
 class ApproveUserDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -2007,6 +1966,7 @@ class TeacherDashboard(QDialog):
         nav_menu.addWidget(name)
         nav_menu.addWidget(department)
 
+        print(self.teacher_data)
 
         # Add Navigation Buttons
         self.pages = QStackedWidget()  # Stacked widget to hold all pages
@@ -2043,15 +2003,47 @@ class TeacherDashboard(QDialog):
         self.create_home_page()
 
     def create_home_page(self):
-        """Create the Home Page."""
+        """Create the Home Page using QFormLayout."""
         page = QWidget()
-        layout = QVBoxLayout(page)
+        layout = QFormLayout(page)
 
-        label = QLabel("Welcome to the Home Page!")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        # Set spacing and margins
+        layout.setSpacing(5)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        layout.addWidget(label)
+        # Teacher Details Section
+        teacher_details_label = QLabel(f"Welcome {self.teacher_data.get('username', 'N/A')}")
+        teacher_details_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        teacher_details_label.setFont(QFont("Artifakt Element", 20, QFont.Weight.Bold))
+        layout.addRow(teacher_details_label)  # Empty label for alignment
+
+        # Teacher Information
+        name_label = QLabel(f"Name: {self.teacher_data.get('name', 'N/A')}")
+        name_label.setFont(QFont("Artifakt Element", 14))
+        name_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addRow(name_label)
+
+        department_label = QLabel(f"Department: {self.teacher_data.get('department', 'N/A')}")
+        department_label.setFont(QFont("Artifakt Element", 14))
+        department_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addRow(department_label)
+
+        id_label = QLabel(f"Teacher ID: {self.teacher_data.get('matric_no', 'N/A')}")
+        id_label.setFont(QFont("Artifakt Element", 14))
+        id_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addRow(id_label)
+
+        email_label = QLabel(f"Email: {self.teacher_data.get('email', 'N/A')}")
+        email_label.setFont(QFont("Artifakt Element", 14))
+        email_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addRow(email_label)
+
+        phone_label = QLabel(f"Phone: {self.teacher_data.get('phone_number', 'N/A')}")
+        phone_label.setFont(QFont("Artifakt Element", 14))
+        phone_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addRow(phone_label)
+
+        # Set the page as the current widget
         self.pages.addWidget(page)
         self.pages.setCurrentWidget(page)
 
